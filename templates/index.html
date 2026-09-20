@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VoyageCraft AI — Next-Gen Travel Intelligence</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="page-bg">
+    <div class="gradient-circle circle-1"></div>
+    <div class="gradient-circle circle-2"></div>
+    <div class="gradient-circle circle-3"></div>
+  </div>
+
+  <main class="app-container">
+    <section class="hero-section">
+      <div class="badge">
+        🌍 VoyageCraft AI — LangGraph, MCP, Supervisor, Guardrails & HITL
+      </div>
+      <h1>Craft Your Perfect Journey</h1>
+      <p>
+        Compare flights, discover boutique stays, monitor live weather, optimize budgets,
+        and fine-tune your personalized itinerary before final creation.
+      </p>
+    </section>
+
+    <section class="planner-card">
+      <div class="card-header">
+        <div>
+          <h2>Where shall we take you?</h2>
+          <p>
+            Example: Plan a 7-day luxury Tokyo & Kyoto trip from London under £3,000.
+          </p>
+        </div>
+        <div class="status-pill">
+          <span class="status-dot"></span>
+          Engine Active
+        </div>
+      </div>
+
+      <div class="input-area">
+        <textarea
+          id="userInput"
+          placeholder="Describe your dream trip (e.g., 7 days in Japan covering flights, local dining, and hidden spots under £3,000)..."
+        ></textarea>
+        <button id="sendBtn" onclick="sendMessage()">
+          <span id="btnText">Craft Itinerary</span>
+          <span id="btnLoader" class="loader hidden"></span>
+        </button>
+      </div>
+
+      <div class="quick-prompts">
+        <button onclick="setPrompt('Plan a 7-day culture & dining trip to Japan including flights and central stays under $2,500.')">
+          ⛩️ Japan Expedition
+        </button>
+        <button onclick="setPrompt('Plan a 5-day luxury Dubai getaway with flights, desert safari, and fine dining.')">
+          🏙️ Dubai Getaway
+        </button>
+        <button onclick="setPrompt('Plan a 7-day island-hopping route in Thailand with boutique hotels and transport.')">
+          🏝️ Thailand Escape
+        </button>
+        <button onclick="setPrompt('Find global flight availability and routes across major international hubs.')">
+          ✈️ Global Routes
+        </button>
+      </div>
+    </section>
+
+    <section id="workflowSection" class="workflow-section hidden">
+      <div class="workflow-header">
+        <div>
+          <span class="eyebrow">Supervisor Intelligence</span>
+          <h2>Execution Strategy</h2>
+        </div>
+        <span id="guardrailBadge" class="guardrail-badge">Guardrails Verified</span>
+      </div>
+      <p id="supervisorReasoning" class="supervisor-reasoning"></p>
+      <div id="agentChips" class="agent-chips"></div>
+    </section>
+
+    <section id="resultSection" class="result-section hidden">
+      <div class="result-header">
+        <div>
+          <h2 id="resultTitle">Your Custom Itinerary</h2>
+          <p id="threadInfo">Thread ID: -</p>
+        </div>
+        <div class="result-actions">
+          <button class="copy-btn" onclick="copyResult()">Copy Itinerary</button>
+          <button class="download-btn" onclick="downloadPDF()">Export PDF</button>
+        </div>
+      </div>
+
+      <div id="pdfContent" class="pdf-content">
+        <h1 class="pdf-title">VoyageCraft AI Itinerary</h1>
+        <div id="resultBox" class="result-box"></div>
+      </div>
+    </section>
+
+    <section id="approvalSection" class="approval-section hidden">
+      <div class="approval-icon">⚡</div>
+      <div class="approval-content">
+        <span class="eyebrow">Human-in-the-Loop</span>
+        <h2>Review Draft Itinerary</h2>
+        <p id="approvalRequest">
+          Approve this draft or request custom adjustments before finalizing.
+        </p>
+
+        <textarea
+          id="approvalFeedback"
+          class="feedback-input"
+          placeholder="e.g., Upgrade the hotel category, add a free day for shopping, or reduce flight duration..."
+        ></textarea>
+
+        <div class="approval-actions">
+          <button id="approveBtn" class="approve-btn" onclick="submitApproval(true)">
+            Approve & Finalize
+          </button>
+          <button id="reviseBtn" class="revise-btn" onclick="submitApproval(false)">
+            Request Revisions
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <section id="errorBox" class="error-box hidden"></section>
+  </main>
+
+  <footer>
+    Powered by FastAPI, LangGraph, Groq, PostgreSQL, Tavily, AviationStack & MCP
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script src="/static/script.js"></script>
+</body>
+</html>

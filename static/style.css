@@ -1,0 +1,671 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  min-height: 100vh;
+  background: #080d1a;
+  color: #f1f5f9;
+  overflow-x: hidden;
+}
+
+/* Ambient Glowing Background Layer */
+.page-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: 
+    radial-gradient(circle at 15% 20%, rgba(99, 102, 241, 0.25), transparent 45%),
+    radial-gradient(circle at 85% 30%, rgba(168, 85, 247, 0.22), transparent 40%),
+    radial-gradient(circle at 50% 80%, rgba(14, 165, 233, 0.2), transparent 50%),
+    linear-gradient(145deg, #070b14 0%, #0d1527 50%, #080d1a 100%);
+}
+
+.gradient-circle {
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(100px);
+  opacity: 0.5;
+  animation: floatOrb 12s ease-in-out infinite alternate;
+}
+
+.circle-1 {
+  width: 420px;
+  height: 420px;
+  background: linear-gradient(135deg, #6366f1, #3b82f6);
+  top: 2%;
+  left: -5%;
+}
+
+.circle-2 {
+  width: 380px;
+  height: 380px;
+  background: linear-gradient(135deg, #a855f7, #ec4899);
+  top: 20%;
+  right: -5%;
+  animation-delay: -4s;
+}
+
+.circle-3 {
+  width: 320px;
+  height: 320px;
+  background: linear-gradient(135deg, #06b6d4, #10b981);
+  bottom: 5%;
+  left: 30%;
+  animation-delay: -8s;
+}
+
+@keyframes floatOrb {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(30px, -20px) scale(1.05); }
+  100% { transform: translate(-20px, 30px) scale(0.95); }
+}
+
+.app-container {
+  width: min(1120px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 60px 0 40px;
+}
+
+/* Hero Section */
+.hero-section {
+  text-align: center;
+  margin-bottom: 38px;
+}
+
+/* Glass Badge */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 22px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  color: #c084fc;
+  font-weight: 600;
+  font-size: 0.88rem;
+  margin-bottom: 22px;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+}
+
+.hero-section h1 {
+  font-size: clamp(2.5rem, 6vw, 4.8rem);
+  line-height: 1.08;
+  letter-spacing: -0.05em;
+  margin-bottom: 18px;
+  background: linear-gradient(135deg, #ffffff 30%, #a5f3fc 70%, #c084fc 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.hero-section p {
+  max-width: 780px;
+  margin: 0 auto;
+  color: #94a3b8;
+  font-size: 1.1rem;
+  line-height: 1.7;
+}
+
+/* Glassmorphism Cards Container */
+.planner-card,
+.workflow-section,
+.result-section,
+.approval-section {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-top: 1px solid rgba(255, 255, 255, 0.22);
+  border-left: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 
+    0 20px 50px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(24px) saturate(190%);
+  -webkit-backdrop-filter: blur(24px) saturate(190%);
+  border-radius: 32px;
+  padding: 32px;
+  transition: transform 0.3s ease, border-color 0.3s ease;
+}
+
+.planner-card:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.workflow-section,
+.result-section,
+.approval-section {
+  margin-top: 28px;
+}
+
+/* Card Headers */
+.card-header,
+.result-header,
+.workflow-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 24px;
+}
+
+.card-header h2,
+.result-header h2,
+.workflow-header h2,
+.approval-content h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 6px;
+  color: #f8fafc;
+}
+
+.card-header p,
+.result-header p,
+.approval-content p {
+  color: #94a3b8;
+  line-height: 1.55;
+  font-size: 0.95rem;
+}
+
+/* Glass Status Pill */
+.status-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(34, 197, 94, 0.1);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.25);
+  backdrop-filter: blur(12px);
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 12px #22c55e;
+}
+
+/* Glass Textarea & Input */
+.input-area {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 16px;
+  align-items: stretch;
+}
+
+textarea {
+  width: 100%;
+  min-height: 150px;
+  resize: vertical;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 22px;
+  background: rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(16px);
+  color: #ffffff;
+  padding: 20px;
+  font-size: 1rem;
+  line-height: 1.65;
+  outline: none;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+textarea:focus {
+  border-color: rgba(168, 85, 247, 0.6);
+  background: rgba(0, 0, 0, 0.35);
+  box-shadow: 
+    0 0 0 4px rgba(168, 85, 247, 0.15),
+    0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+textarea::placeholder {
+  color: #64748b;
+}
+
+/* Glowing Glass Button */
+#sendBtn {
+  min-width: 180px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 22px;
+  padding: 0 28px;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.85), rgba(168, 85, 247, 0.85));
+  backdrop-filter: blur(12px);
+  color: #ffffff;
+  font-weight: 800;
+  font-size: 1rem;
+  cursor: pointer;
+  box-shadow: 0 12px 30px rgba(99, 102, 241, 0.35);
+  transition: all 0.3s ease;
+}
+
+#sendBtn:hover {
+  transform: translateY(-3px) scale(1.02);
+  box-shadow: 0 20px 40px rgba(168, 85, 247, 0.45);
+  background: linear-gradient(135deg, rgba(99, 102, 241, 1), rgba(168, 85, 247, 1));
+}
+
+#sendBtn:active {
+  transform: translateY(-1px);
+}
+
+#sendBtn:disabled,
+.approve-btn:disabled,
+.revise-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Glass Quick Prompts Buttons */
+.quick-prompts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.quick-prompts button {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(10px);
+  color: #cbd5e1;
+  border-radius: 999px;
+  padding: 10px 18px;
+  font-size: 0.88rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.quick-prompts button:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #ffffff;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+}
+
+.eyebrow {
+  display: inline-block;
+  margin-bottom: 6px;
+  color: #38bdf8;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.guardrail-badge {
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  background: rgba(34, 197, 94, 0.12);
+  color: #86efac;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.guardrail-badge.blocked {
+  border-color: rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.15);
+  color: #fecaca;
+}
+
+.supervisor-reasoning {
+  color: #cbd5e1;
+  line-height: 1.7;
+  margin-bottom: 18px;
+}
+
+/* Agent Chips */
+.agent-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.agent-chip {
+  padding: 10px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  background: rgba(56, 189, 248, 0.08);
+  backdrop-filter: blur(10px);
+  color: #e0f2fe;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+/* Actions & PDF Export View */
+.result-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.copy-btn,
+.download-btn {
+  border: none;
+  border-radius: 14px;
+  padding: 11px 20px;
+  cursor: pointer;
+  font-weight: 700;
+  transition: all 0.25s ease;
+}
+
+.copy-btn {
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.06);
+  color: #ffffff;
+  backdrop-filter: blur(10px);
+}
+
+.copy-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  transform: translateY(-2px);
+}
+
+.download-btn {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #ffffff;
+  box-shadow: 0 10px 25px rgba(16, 185, 129, 0.3);
+}
+
+.download-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 15px 30px rgba(16, 185, 129, 0.4);
+}
+
+/* PDF Content Container */
+.pdf-content {
+  background: rgba(255, 255, 255, 0.95);
+  color: #0f172a;
+  border-radius: 24px;
+  padding: 30px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+}
+
+.pdf-title {
+  display: none;
+  color: #0f172a;
+  font-size: 2rem;
+  margin-bottom: 20px;
+}
+
+.result-box {
+  background: transparent;
+  color: #1e293b;
+  border: none;
+  padding: 0;
+  white-space: normal;
+  overflow-x: auto;
+}
+
+.result-box h1,
+.result-box h2,
+.result-box h3 {
+  color: #0f172a;
+  margin-top: 26px;
+  margin-bottom: 12px;
+  line-height: 1.25;
+  font-weight: 800;
+}
+
+.result-box h1:first-child,
+.result-box h2:first-child,
+.result-box h3:first-child {
+  margin-top: 0;
+}
+
+.result-box h1 {
+  font-size: 2rem;
+  border-bottom: 3px solid #6366f1;
+  padding-bottom: 10px;
+}
+
+.result-box h2 {
+  font-size: 1.4rem;
+  border-left: 5px solid #6366f1;
+  padding: 10px 0 10px 14px;
+  background: #f1f5f9;
+  border-radius: 10px;
+}
+
+.result-box h3 {
+  font-size: 1.15rem;
+  color: #4f46e5;
+}
+
+.result-box p {
+  margin-bottom: 14px;
+  line-height: 1.75;
+  color: #334155;
+}
+
+.result-box ul,
+.result-box ol {
+  margin: 10px 0 18px 24px;
+  color: #334155;
+}
+
+.result-box li {
+  margin-bottom: 8px;
+  line-height: 1.65;
+}
+
+.result-box strong {
+  color: #0f172a;
+  font-weight: 800;
+}
+
+.result-box hr {
+  border: none;
+  border-top: 1px solid #e2e8f0;
+  margin: 24px 0;
+}
+
+.result-box table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 18px 0;
+  color: #334155;
+}
+
+.result-box th,
+.result-box td {
+  border: 1px solid #e2e8f0;
+  padding: 10px;
+  text-align: left;
+}
+
+.result-box th {
+  background: #f1f5f9;
+  color: #0f172a;
+  font-weight: 800;
+}
+
+/* Glass Approval Section */
+.approval-section {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 24px;
+  border-color: rgba(245, 158, 11, 0.3);
+  background: rgba(245, 158, 11, 0.05);
+}
+
+.approval-icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 20px;
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  backdrop-filter: blur(12px);
+  font-size: 1.6rem;
+}
+
+.feedback-input {
+  min-height: 105px;
+  margin-top: 18px;
+  border-radius: 18px;
+}
+
+.approval-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.approve-btn,
+.revise-btn {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 14px;
+  padding: 12px 22px;
+  color: #ffffff;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.approve-btn {
+  background: linear-gradient(135deg, #10b981, #059669);
+  box-shadow: 0 10px 25px rgba(16, 185, 129, 0.3);
+}
+
+.revise-btn {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  box-shadow: 0 10px 25px rgba(245, 158, 11, 0.3);
+}
+
+.approve-btn:hover,
+.revise-btn:hover {
+  transform: translateY(-2px);
+}
+
+.error-box {
+  margin-top: 24px;
+  padding: 20px 24px;
+  border-radius: 20px;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  backdrop-filter: blur(16px);
+  color: #fecaca;
+  line-height: 1.6;
+}
+
+.loader {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: spin 0.85s linear infinite;
+}
+
+.hidden {
+  display: none !important;
+}
+
+footer {
+  text-align: center;
+  color: #64748b;
+  padding: 36px 16px 40px;
+  font-size: 0.9rem;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media print {
+  body {
+    background: #ffffff;
+  }
+
+  .planner-card,
+  .workflow-section,
+  .approval-section,
+  .hero-section,
+  footer,
+  .result-actions,
+  #threadInfo {
+    display: none;
+  }
+
+  .result-section {
+    box-shadow: none;
+    border: none;
+    background: #ffffff;
+  }
+
+  .pdf-title {
+    display: block;
+  }
+}
+
+@media (max-width: 760px) {
+  .app-container {
+    padding-top: 36px;
+  }
+
+  .planner-card,
+  .workflow-section,
+  .result-section,
+  .approval-section {
+    padding: 22px;
+    border-radius: 24px;
+  }
+
+  .card-header,
+  .result-header,
+  .workflow-header {
+    flex-direction: column;
+  }
+
+  .input-area {
+    grid-template-columns: 1fr;
+  }
+
+  #sendBtn {
+    min-height: 54px;
+  }
+
+  .hero-section p {
+    font-size: 1rem;
+  }
+
+  .result-actions,
+  .approval-actions {
+    width: 100%;
+  }
+
+  .copy-btn,
+  .download-btn,
+  .approve-btn,
+  .revise-btn {
+    flex: 1;
+  }
+
+  .pdf-content {
+    padding: 20px;
+  }
+
+  .approval-section {
+    grid-template-columns: 1fr;
+  }
+}
