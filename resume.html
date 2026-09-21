@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sathish Chakali - Resume</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+        h2 {
+            font-size: 18px;
+            border-bottom: 2px solid #333;
+            padding-bottom: 5px;
+            margin-top: 20px;
+        }
+        h3 {
+            font-size: 16px;
+            margin-bottom: 5px;
+        }
+        .contact-info {
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+        .summary, .experience-item, .project-item {
+            margin-bottom: 15px;
+        }
+        ul {
+            margin-top: 5px;
+            padding-left: 20px;
+        }
+        li {
+            margin-bottom: 5px;
+        }
+        .meta {
+            font-style: italic;
+            font-size: 14px;
+            color: #555;
+        }
+        .project-links {
+            font-size: 13px;
+            margin-top: 2px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Sathish Chakali</h1>
+    <p><strong>AI/ML Engineer | Building agentic systems - RAG, tool-calling via MCP, and fine-tuned LLMs - backed by production-grade API and data engineering discipline.</strong></p>
+    
+    <div class="contact-info">
+        Hyderabad, India | +91 6301343762 | sathishchakali1023@gmail.com | 
+        <a href="https://www.linkedin.com/in/sathish-chakali-91221b320" target="_blank">LinkedIn</a> | 
+        <a href="https://github.com/sathish3201" target="_blank">GitHub</a>
+    </div>
+
+    <p><strong>Coding Profiles:</strong> 
+        <a href="https://leetcode.com/u/sathish3201" target="_blank">LeetCode</a> | 
+        <a href="https://www.codechef.com/users/sathish3201" target="_blank">CodeChef</a> | 
+        <a href="https://codeforces.com/profile/sathish3201" target="_blank">Codeforces</a> | 
+        <a href="https://www.hackerrank.com/profile/sathish3201" target="_blank">HackerRank</a> | 
+        <a href="https://www.interviewbit.com/profile/sathish3201" target="_blank">InterviewBit</a>
+    </p>
+
+    <h2>Professional Summary</h2>
+    <p class="summary">
+        AI/ML engineer with nearly 2 years of production engineering experience at Accenture (Oct 2024 – Aug 2026), building agentic AI systems end-to-end alongside production Oracle PL/SQL work. Built and deployed Local Agent Pipeline - a fully local agentic system combining NL-to-SQL generation validated by a read-only SqlGuard, semantic search over 5,500+ transcript chunks via ChromaDB (RAG), an MCP server exposing tools for agent use, and a two-tier memory + SQLite cache, built with FastAPI and deployed via Docker on Render. Also shipped a full MERN-stack SaaS mock interview platform with JWT authentication and live LLM-based grading (Groq/Llama), an Oracle ETL data warehouse pipeline with production-style exception handling, a documented SQL performance tuning case study, and an n8n + LLM incident-triage automation - all version-controlled on GitHub, several with live public deployments on Render. Comfortable taking AI-backed systems from local development to publicly accessible, production deployments end-to-end. Java Full Stack Certified (Wipro TalentNext), AI/ML Virtual Internship Certified; eager to grow with a team building applied AI systems.
+    </p>
+
+    <h2>Core Skills</h2>
+    <ul>
+        <li><strong>AI & Agentic Systems:</strong> RAG (ChromaDB), MCP (Model Context Protocol), Multi-Agent Orchestration (LangGraph), NL-to-SQL Generation, LLM API Integration (Groq/Llama, Claude), Fine-Tuning, Structured Prompting</li>
+        <li><strong>Backend & APIs:</strong> FastAPI, Node.js & Express, RESTful API Development, Oracle PL/SQL & APEX, Python, Java</li>
+        <li><strong>Data & Databases:</strong> SQLite, MongoDB (NoSQL), MySQL, PostgreSQL, Oracle SQL, Vector Search</li>
+        <li><strong>Frontend:</strong> HTML, CSS, JavaScript, React (UI Development), Tailwind CSS</li>
+        <li><strong>Deployment & DevOps:</strong> Docker, Git/GitHub, CI/CD Pipelines (GitHub Actions), Render, GitHub Pages, MongoDB Atlas</li>
+        <li><strong>Debugging & Testing:</strong> Root-Cause Analysis, SQL Performance Tuning (Optimizer Hints, DBMS_STATS, EXPLAIN PLAN)</li>
+        <li><strong>Collaboration:</strong> Agile/Hybrid Team Collaboration, Clear Written & Verbal Communication</li>
+    </ul>
+
+    <h2>Professional Experience</h2>
+    <div class="experience-item">
+        <h3>Package Development Associate, Oracle Development & Support — Accenture</h3>
+        <p class="meta">Oct 2024 – Aug 2026 | Hybrid</p>
+        <ul>
+            <li>Wrote and debugged backend code (Oracle PL/SQL packages, procedures, functions, triggers) for production systems, reducing recurring defects by 25% through careful root-cause debugging.</li>
+            <li>Tuned query performance to improve reliability and scalability, cutting execution time on high-volume queries by 35%.</li>
+            <li>Worked with REST APIs and cross-system data flows to diagnose and resolve integration issues across 2 daily production jobs.</li>
+            <li>Collaborated with a 3-member hybrid team — clear written and verbal communication on issue status and fixes achieving 95% SLA compliance and 97% on-time completion.</li>
+            <li>Documented recurring issues and fixes in a shared knowledge base for team-wide use, reducing repeat issues by 20%.</li>
+        </ul>
+    </div>
+
+    <h2>Projects (Full Stack & AI, on GitHub)</h2>
+    
+    <div class="project-item">
+        <h3>Local Agent Pipeline - NL-to-SQL + RAG + MCP</h3>
+        <p>A fully local agentic pipeline over NASA mission data: natural-language-to-SQL generation validated by a read-only SqlGuard, semantic search over 5,500+ transcript chunks via ChromaDB, an MCP server exposing it all as callable tools, and a two-tier (memory + SQLite) cache. Built with FastAPI, containerized with Docker, and deployed on Render.</p>
+        <div class="project-links">
+            <a href="https://github.com/sathish3201" target="_blank">Code</a> | 
+            <a href="https://local-agent-pipeline.onrender.com" target="_blank">Live Demo</a>
+        </div>
+    </div>
+
+    <div class="project-item">
+        <h3>Job Search Agent - Multi-Agent LangGraph Pipeline</h3>
+        <p>Multi-agent job search pipeline (LangGraph): search agents across Remotive/Adzuna/Apify (LinkedIn, Naukri), an LLM fit-ranking agent, and a deterministic ATS keyword-matching agent mirroring real applicant tracking systems; on-demand ATS-targeted resume tailoring with a truthfulness guardrail, live streaming results, FastAPI + React, deployed on Render.</p>
+        <div class="project-links">
+            <a href="https://github.com/sathish3201" target="_blank">Code</a> | 
+            <a href="https://job-search-agent.onrender.com" target="_blank">Live Demo</a>
+        </div>
+    </div>
+
+    <div class="project-item">
+        <h3>Oracle ETL Warehouse Pipeline</h3>
+        <p>Star-schema Oracle data warehouse with a PL/SQL package loading staging data into dimension and fact tables, with per-row exception handling, error logging, and batch-run tracking modeled on production ETL support workflows.</p>
+        <div class="project-links">
+            <a href="https://github.com/sathish3201" target="_blank">Code</a> | 
+            <a href="https://oracle-etl-warehouse.onrender.com" target="_blank">Live Demo</a>
+        </div>
+    </div>
+
+    <div class="project-item">
+        <h3>SQL Performance Tuning Case Study</h3>
+        <p>Documented before/after tuning exercise on a 2M-row Oracle table using DBMS_STATS, a targeted composite index, and Optimizer Hints, with EXPLAIN PLAN evidence captured for both states.</p>
+        <div class="project-links">
+            <a href="https://github.com/sathish3201" target="_blank">Code</a> | 
+            <a href="https://sql-performance-tuning.onrender.com" target="_blank">Live Demo</a>
+        </div>
+    </div>
+
+    <div class="project-item">
+        <h3>ETL Incident Triage Automation</h3>
+        <p>n8n workflow that classifies ETL job failures using an LLM and drafts ready-to-paste incident tickets, automating the manual triage step in production data support.</p>
+        <div class="project-links">
+            <a href="https://github.com/sathish3201" target="_blank">Code</a> | 
+            <a href="https://etl-incident-triage.onrender.com" target="_blank">Live Demo</a>
+        </div>
+    </div>
+
+    <div class="project-item">
+        <h3>MockGenius AI - SaaS Mock Interview Platform</h3>
+        <p>Full MERN-stack app simulating technical mock interviews: JWT authentication, AI-generated interview questions, instant LLM-based grading (Groq/Llama), speech-to-text answer input, and a score-progression dashboard; deployed end-to-end (Render + MongoDB Atlas).</p>
+        <div class="project-links">
+            <a href="https://github.com/sathish3201" target="_blank">Code</a> | 
+            <a href="https://mockgenius-ai.onrender.com" target="_blank">Live Demo</a>
+        </div>
+    </div>
+
+    <div class="project-item">
+        <h3>EKADHANTHA - Business Website</h3>
+        <p>Full-stack marketing website for an IT services business: React frontend with a Node/Express backend serving services, pricing, and portfolio content, a working contact form with email notifications, and a lightweight built-in FAQ chatbot.</p>
+        <div class="project-links">
+            <a href="https://github.com/sathish3201" target="_blank">Code</a> | 
+            <a href="https://ekadhantha.onrender.com" target="_blank">Live Demo</a>
+        </div>
+    </div>
+
+    <div class="project-item">
+        <h3>E-Commerce Storefront Demo</h3>
+        <p>Working storefront with product catalog, cart, Razorpay test-mode checkout with server-side payment signature verification, an admin dashboard for inventory and orders, and a built-in FAQ chatbot.</p>
+        <div class="project-links">
+            <a href="https://github.com/sathish3201" target="_blank">Code</a> | 
+            <a href="https://ecommerce-storefront.onrender.com" target="_blank">Live Demo</a>
+        </div>
+    </div>
+
+    <div class="project-item">
+        <h3>Object Design Field Guide</h3>
+        <p>A reference doc covering OOP fundamentals with a beginner before/after walkthrough, all five SOLID principles, and six core design patterns (Adapter, Decorator, Strategy, State, Observer, Factory) each shown before and after, with UML diagrams and working code in Python, Java, C#, and React.</p>
+        <div class="project-links">
+            <a href="https://github.com/sathish3201" target="_blank">Read Guide / Live Demo</a>
+        </div>
+    </div>
+
+    <div class="project-item">
+        <h3>AI Chatbot for Website Q&A</h3>
+        <p>A RAG pipeline that ingests a business website's content and answers visitor questions conversationally, built with Python, LangChain, and Hugging Face models, using ChromaDB as the vector store.</p>
+    </div>
+
+    <div class="project-item">
+        <h3>ATS Resume Checker</h3>
+        <p>A Streamlit tool that scores and analyzes resumes for ATS compatibility, checking formatting issues, missing keywords, and structural problems.</p>
+    </div>
+
+    <h2>Education</h2>
+    <ul>
+        <li><strong>B.Tech, Computer Engineering</strong> - CGPA: 8.5/10<br>CMR Engineering College, Hyderabad | Graduated</li>
+        <li><strong>Intermediate (XII)</strong><br>Sandeepani Junior College, Kamareddy | 2019</li>
+        <li><strong>SSC (X)</strong> - CGPA: 9.3<br>Zilla Parishad High School, Kondapoor, Kamareddy | 2017</li>
+    </ul>
+
+    <h2>Certifications</h2>
+    <ul>
+        <li><a href="https://drive.google.com/file/d/1gk7wSlls5mJyMfP10AdYUadw734mZGRB/view" target="_blank">Java Full Stack Certification</a> — Wipro TalentNext (2023)</li>
+        <li><a href="https://drive.google.com/file/d/1fROL0btOMy2wP2pxssZJ7b9N-h19l5ev/view" target="_blank">AI/ML Virtual Internship Certificate</a> — AICTE (2023)</li>
+        <li><a href="https://smartinterviews.in/certificate/3f36302d" target="_blank">Smart Coder Certification — Global Rank 1402/22591</a> — Smart Interviews (2022)</li>
+        <li>HTML Attributes & Tags — GL Academy (2022)</li>
+        <li><a href="https://catalog-education.oracle.com/ords/certview/sharebadge?id=5770389206EFA7642AC2E1EAA018C0F2D6ADCD08636833023F618BD01D5A5AF2" target="_blank">Oracle Cloud Infrastructure 2025 Certified AI Foundations Associate</a> — Oracle (2025)</li>
+        <li><a href="https://catalog-education.oracle.com/ords/certview/sharebadge?id=033D533BEA9E1DD4098AC4990A7B80D924D923B5B3F7C37A35D13D7ADFF9B305" target="_blank">Oracle Fusion AI Agent Studio Certified Foundations Associate - Rel 1</a> — Oracle (2026)</li>
+        <li><a href="https://catalog-education.oracle.com/ords/certview/sharebadge?id=8F564295B804BA5136BD3F17D5CCA4605C6BCE83A5EDD3EB3701C1B0D8455AF8" target="_blank">Oracle Cloud Infrastructure 2025 Certified Foundations Associate</a> — Oracle (2026)</li>
+    </ul>
+
+</body>
+</html>
