@@ -6,8 +6,8 @@ from typing import Any
 
 import certifi
 from dotenv import load_dotenv
-# from langchain_groq import ChatGroq
-from langchain_ollama import ChatOllama
+from langchain_groq import ChatGroq
+# from langchain_ollama import ChatOllama
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
 
@@ -66,12 +66,12 @@ def _subprocess_env(**updates: str | None) -> dict[str, str]:
 # LLM
 # =========================================================
 
-# llm = ChatGroq(
-#     model="llama-3.3-70b-versatile",
-#     api_key=_require_env("GROQ_API_KEY", GROQ_API_KEY),
-# )
+llm = ChatGroq(
+    model="openai/gpt-oss-20b",
+    api_key=_require_env("GROQ_API_KEY", GROQ_API_KEY),
+)
 
-llm = ChatOllama(model="qwen2.5-coder:1.5b", base_url="http://localhost:11434")
+# llm = ChatOllama(model="qwen2.5:3b", base_url="http://localhost:11434", temperature = 0)
 
 # =========================================================
 # MCP client
