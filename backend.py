@@ -63,11 +63,11 @@ GROQ_API_KEY = _require_env(
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-TOKEN_LIMIT = int(os.getenv("TOKEN_LIMIT", "6000"))
+TOKEN_LIMIT = int(os.getenv("TOKEN_LIMIT", "7500"))
 
 # Request-size protection. This is a character limit, not a
 # provider tokenizer limit.
-MAX_USER_INPUT_CHARS = 6000
+MAX_USER_INPUT_CHARS = 7500
 
 # Conservative local estimate. It is not an exact tokenizer.
 TOKEN_ESTIMATE_CHARS_PER_TOKEN = 2.5
@@ -76,7 +76,7 @@ TOKEN_ESTIMATE_CHARS_PER_TOKEN = 2.5
 # It is NOT a distributed TPM limiter and does not coordinate
 # across multiple workers, containers, or application instances.
 LOCAL_TPM_LIMIT = int(
-    os.getenv("LOCAL_TPM_LIMIT", "7000")
+    os.getenv("LOCAL_TPM_LIMIT", "7200")
 )
 
 LOCAL_TPM_WINDOW_SECONDS = 60
@@ -373,65 +373,391 @@ def sanitize_messages(messages):
     return sanitized
 
 
+
+def classify_groq_rate_limit(error):
+    message = str(error).lower()
+
+    if "tokens per day" in message or "tpd" in message:
+        return "TPD"
+
+    if "tokens per minute" in message or "tpm" in message:
+        return "TPM"
+
+    if "requests per minute" in message or "rpm" in message:
+        return "RPM"
+
+    if "rate_limit_exceeded" in message or "429" in message:
+        return "UNKNOWN_429"
+
+    return None
+
+
 # =========================================================
 # LOCAL TOKEN RATE TRACKER
 # =========================================================
 
-class LocalTokenRateTracker:
-    """
-    Process-local rolling token estimate.
+# class LocalTokenRateTracker:
+#     """
+#     Process-local rolling token estimate.
 
-    Important:
-    - This is not a distributed rate limiter.
-    - It does not coordinate multiple workers.
-    - It uses estimates before provider usage is available.
-    - Use Redis or another shared store for production-wide TPM.
+#     Important:
+#     - This is not a distributed rate limiter.
+#     - It does not coordinate multiple workers.
+#     - It uses estimates before provider usage is available.
+#     - Use Redis or another shared store for production-wide TPM.
+#     """
+
+#     def __init__(
+#         self,
+#         limit: int,
+#         window_seconds: int = 60,
+#     ):
+
+#         self.limit = limit
+#         self.window_seconds = window_seconds
+
+#         self.events = deque()
+#         self.lock = Lock()
+
+#     def _remove_expired(self, now):
+
+#         cutoff = now - self.window_seconds
+
+#         while self.events and self.events[0][0] <= cutoff:
+#             self.events.popleft()
+
+#     def reserve(self, tokens: int):
+
+#         now = time.monotonic()
+
+#         with self.lock:
+
+#             self._remove_expired(now)
+
+#             current = sum(
+#                 item[1]
+#                 for item in self.events
+#             )
+
+#             if current + tokens > self.limit:
+
+#                 raise RuntimeError(
+#                     "Local token-rate limit reached. "
+#                     f"Estimated current usage: {current}; "
+#                     f"requested: {tokens}; "
+#                     f"limit: {self.limit}."
+#                 )
+
+#             self.events.append(
+#                 (now, tokens)
+#             )
+
+#     def usage(self):
+
+#         now = time.monotonic()
+
+#         with self.lock:
+
+#             self._remove_expired(now)
+
+#             return sum(
+#                 item[1]
+#                 for item in self.events
+#             )
+
+
+# local_token_tracker = LocalTokenRateTracker(
+#     limit=LOCAL_TPM_LIMIT,
+#     window_seconds=LOCAL_TPM_WINDOW_SECONDS,
+# )
+# -------------------------------------------------------------------------
+
+
+import threading
+import random
+from collections import deque
+from threading import Lock, BoundedSemaphore
+
+
+class HybridTokenRateLimiter:
+    """
+    Process-local hybrid TPM limiter.
+
+    1. Sliding window: maximum tokens within 60 seconds.
+    2. Token bucket: smooths token consumption.
+    3. Reservation: reserves input + maximum output.
+    4. Reconciliation: adjusts reservation using actual usage.
+    5. Thread safety: supports concurrent synchronous calls.
+
+    This implementation is per process, not distributed.
     """
 
     def __init__(
         self,
-        limit: int,
-        window_seconds: int = 60,
+        tpm_limit=8000,
+        window_seconds=60,
+        max_concurrent=2,
     ):
-
-        self.limit = limit
+        self.tpm_limit = tpm_limit
         self.window_seconds = window_seconds
 
+        # Token bucket configuration.
+        self.bucket_capacity = tpm_limit
+        self.refill_rate = tpm_limit / window_seconds
+        self.bucket_tokens = float(tpm_limit)
+
+        self.last_refill = time.monotonic()
+
+        # (timestamp, reservation_id, tokens)
         self.events = deque()
+
         self.lock = Lock()
 
-    def _remove_expired(self, now):
+        # Limits simultaneous model requests.
+        self.semaphore = BoundedSemaphore(
+            max_concurrent
+        )
 
+    def _refill_bucket(self, now):
+        elapsed = max(
+            0,
+            now - self.last_refill
+        )
+
+        self.bucket_tokens = min(
+            self.bucket_capacity,
+            self.bucket_tokens
+            + elapsed * self.refill_rate
+        )
+
+        self.last_refill = now
+
+    def _remove_expired(self, now):
         cutoff = now - self.window_seconds
 
-        while self.events and self.events[0][0] <= cutoff:
+        while (
+            self.events
+            and self.events[0][0] <= cutoff
+        ):
             self.events.popleft()
 
-    def reserve(self, tokens: int):
+    def _window_usage(self):
+        return sum(
+            event[2]
+            for event in self.events
+        )
+
+    def acquire(self, tokens):
+        """
+        Wait until both rate-limiting algorithms
+        permit the requested token reservation.
+        """
+
+        tokens = max(1, int(tokens))
+
+        if tokens > self.tpm_limit:
+            raise ValueError(
+                f"Request requires {tokens} tokens, "
+                f"but TPM capacity is {self.tpm_limit}. "
+                "Reduce input or max_output_tokens."
+            )
+
+        while True:
+
+            now = time.monotonic()
+
+            with self.lock:
+
+                self._refill_bucket(now)
+                self._remove_expired(now)
+
+                current_usage = self._window_usage()
+
+                window_wait = 0.0
+                bucket_wait = 0.0
+
+                # Sliding window check.
+                if current_usage + tokens > self.tpm_limit:
+
+                    required_release = (
+                        current_usage
+                        + tokens
+                        - self.tpm_limit
+                    )
+
+                    released = 0
+
+                    for timestamp, _, event_tokens in self.events:
+
+                        released += event_tokens
+
+                        if released >= required_release:
+
+                            window_wait = max(
+                                0,
+                                timestamp
+                                + self.window_seconds
+                                - now
+                            )
+
+                            break
+
+                # Token bucket check.
+                if self.bucket_tokens < tokens:
+
+                    bucket_wait = (
+                        tokens - self.bucket_tokens
+                    ) / self.refill_rate
+
+                wait_time = max(
+                    window_wait,
+                    bucket_wait,
+                )
+
+                if wait_time <= 0:
+
+                    reservation_id = uuid.uuid4().hex
+
+                    self.bucket_tokens -= tokens
+
+                    self.events.append(
+                        (
+                            now,
+                            reservation_id,
+                            tokens,
+                        )
+                    )
+
+                    print(
+                        f"[RATE LIMITER] Reserved={tokens} "
+                        f"Window={current_usage + tokens}/"
+                        f"{self.tpm_limit} "
+                        f"Bucket={self.bucket_tokens:.0f}",
+                        flush=True,
+                    )
+
+                    return reservation_id
+
+            print(
+                f"[RATE LIMITER] Waiting {wait_time:.2f}s "
+                "for token capacity...",
+                flush=True,
+            )
+
+            time.sleep(
+                max(0.05, wait_time)
+            )
+
+
+    def settle(self, reservation_id, actual_tokens):
+        """
+        Reconcile estimated token reservation with actual
+        provider usage.
+
+        - Refund unused reserved tokens.
+        - Charge additional actual tokens.
+        - Update sliding-window usage.
+        - Update token bucket.
+        - Detect missing reservations.
+        - Maintain thread safety.
+        """
+
+        actual_tokens = max(0, int(actual_tokens))
 
         now = time.monotonic()
 
         with self.lock:
 
+            # Refill token bucket based on elapsed time.
+            self._refill_bucket(now)
+
+            # Remove expired sliding-window reservations.
             self._remove_expired(now)
 
-            current = sum(
-                item[1]
-                for item in self.events
-            )
+            found = False
 
-            if current + tokens > self.limit:
+            for index, event in enumerate(self.events):
 
-                raise RuntimeError(
-                    "Local token-rate limit reached. "
-                    f"Estimated current usage: {current}; "
-                    f"requested: {tokens}; "
-                    f"limit: {self.limit}."
+                timestamp, event_id, reserved = event
+
+                if event_id != reservation_id:
+                    continue
+
+                found = True
+
+                # Difference between reserved and actual tokens.
+                difference = reserved - actual_tokens
+
+                # Refund unused tokens or charge extra usage.
+                self.bucket_tokens = max(
+                    0.0,
+                    min(
+                        self.bucket_capacity,
+                        self.bucket_tokens + difference
+                    )
                 )
 
-            self.events.append(
-                (now, tokens)
-            )
+                # Replace estimated usage with actual usage.
+                self.events[index] = (
+                    timestamp,
+                    event_id,
+                    actual_tokens,
+                )
+
+                print(
+                    f"[TOKEN RECONCILIATION] "
+                    f"Reserved={reserved} "
+                    f"Actual={actual_tokens} "
+                    f"Difference={difference:+d} "
+                    f"Bucket={self.bucket_tokens:.0f} "
+                    f"Window={self._window_usage()}/"
+                    f"{self.tpm_limit}",
+                    flush=True,
+                )
+
+                break
+
+            if not found:
+
+                print(
+                    f"[RATE LIMITER WARNING] "
+                    f"Reservation not found: {reservation_id}",
+                    flush=True,
+                )
+
+                return False
+
+            return True
+
+
+
+    def release(self, reservation_id):
+        """
+        Release a reservation after a failed request.
+        """
+
+        now = time.monotonic()
+
+        with self.lock:
+
+            self._refill_bucket(now)
+
+            for index, event in enumerate(self.events):
+
+                timestamp, event_id, reserved = event
+
+                if event_id == reservation_id:
+
+                    self.bucket_tokens = min(
+                        self.bucket_capacity,
+                        self.bucket_tokens + reserved
+                    )
+
+                    del self.events[index]
+
+                    break
+
+            self._remove_expired(now)
 
     def usage(self):
 
@@ -439,23 +765,111 @@ class LocalTokenRateTracker:
 
         with self.lock:
 
+            self._refill_bucket(now)
             self._remove_expired(now)
 
-            return sum(
-                item[1]
-                for item in self.events
-            )
+            return self._window_usage()
 
 
-local_token_tracker = LocalTokenRateTracker(
-    limit=LOCAL_TPM_LIMIT,
-    window_seconds=LOCAL_TPM_WINDOW_SECONDS,
+# Configure Groq free-tier limiter.
+LOCAL_TPM_LIMIT = int(
+    os.getenv("LOCAL_TPM_LIMIT", "8000")
+)
+
+local_token_tracker = HybridTokenRateLimiter(
+    tpm_limit=LOCAL_TPM_LIMIT,
+    window_seconds=60,
+    max_concurrent=2,
 )
 
 
 # =========================================================
 # CENTRALIZED LLM GATEWAY
 # =========================================================
+
+
+import time
+import random
+import re
+
+
+MAX_429_RETRIES = 4
+RETRY_BASE_SECONDS = 2
+RETRY_MAX_SECONDS = 30
+
+
+def is_rate_limit_error(exc):
+    status_code = getattr(exc, "status_code", None)
+
+    if status_code == 429:
+        return True
+
+    error_text = str(exc).lower()
+
+    return (
+        "429" in error_text
+        or "rate_limit_exceeded" in error_text
+        or "rate limit reached" in error_text
+    )
+
+
+def get_retry_after(exc):
+    response_obj = getattr(exc, "response", None)
+    headers = getattr(response_obj, "headers", {}) or {}
+
+    retry_after = headers.get("retry-after")
+
+    if retry_after:
+        try:
+            return max(0, float(retry_after))
+        except (ValueError, TypeError):
+            pass
+
+    match = re.search(
+        r"retry[- ]after[:\s]+([0-9.]+)",
+        str(exc),
+        re.IGNORECASE,
+    )
+
+    if match:
+        return float(match.group(1))
+
+    return None
+
+
+def get_provider_token_usage(response, fallback_tokens):
+
+    usage = getattr(response, "usage", None)
+
+    total_tokens = _usage_value(
+        usage,
+        "total_tokens",
+        0,
+    )
+
+    if total_tokens and total_tokens > 0:
+        return int(total_tokens)
+
+    prompt_tokens = _usage_value(
+        usage,
+        "prompt_tokens",
+        0,
+    )
+
+    completion_tokens = _usage_value(
+        usage,
+        "completion_tokens",
+        0,
+    )
+
+    actual = prompt_tokens + completion_tokens
+
+    if actual > 0:
+        return int(actual)
+
+    # Missing usage metadata: conservatively retain reservation.
+    return int(fallback_tokens)
+
 
 def centralized_llm_call(
     messages,
@@ -464,16 +878,17 @@ def centralized_llm_call(
     response_format=None,
 ):
     """
-    All provider calls must pass through this function.
+    Centralized synchronous LLM gateway.
 
     Flow:
-        Messages
-            -> Input validation
-            -> Prompt-injection detection
-            -> PII redaction
-            -> Local rate estimate
-            -> LiteLLM Router
-            -> Provider
+        Sanitize
+        -> Estimate tokens
+        -> Acquire semaphore
+        -> Acquire sliding window + token bucket
+        -> Call provider
+        -> Reconcile actual usage
+        -> Retry 429 with exponential backoff
+        -> Release semaphore
     """
 
     sanitized_messages = sanitize_messages(messages)
@@ -483,72 +898,285 @@ def centralized_llm_call(
         for message in sanitized_messages
     )
 
-    estimated_input = estimate_tokens(
-        prompt_text
-    )
+    estimated_input = estimate_tokens(prompt_text)
 
     estimated_request = (
-        estimated_input + max_tokens
+        estimated_input + int(max_tokens)
     )
 
-    local_token_tracker.reserve(
-        estimated_request
-    )
+    if estimated_request > local_token_tracker.tpm_limit:
+        raise ValueError(
+            f"Request estimate {estimated_request} exceeds "
+            f"TPM capacity {local_token_tracker.tpm_limit}. "
+            "Reduce prompt size or max_tokens."
+        )
 
-    start_time = time.time()
+    # Limit concurrent requests.
+    local_token_tracker.semaphore.acquire()
 
-    call_kwargs = {
-        "model": "travel-llm",
-        "messages": sanitized_messages,
-        "max_tokens": max_tokens,
-        "temperature": temperature,
-    }
+    try:
 
-    if response_format is not None:
-        call_kwargs["response_format"] = response_format
+        for attempt in range(MAX_429_RETRIES + 1):
 
-    response = router.completion(
-        **call_kwargs
-    )
+            # Reserve capacity for this individual attempt.
+            reservation_id = local_token_tracker.acquire(
+                estimated_request
+            )
 
-    latency = round(
-        time.time() - start_time,
-        3,
-    )
+            start_time = time.monotonic()
 
-    hidden_params = getattr(
-        response,
-        "_hidden_params",
-        {},
-    ) or {}
+            call_kwargs = {
+                "model": "travel-llm",
+                "messages": sanitized_messages,
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+            }
 
-    model_id = hidden_params.get(
-        "model_id",
-        "unknown",
-    )
+            if response_format is not None:
+                call_kwargs["response_format"] = response_format
 
-    usage = getattr(
-        response,
-        "usage",
-        None,
-    )
+            try:
 
-    total_tokens = _usage_value(
-        usage,
-        "total_tokens",
-        0,
-    )
+                response = router.completion(
+                    **call_kwargs
+                )
 
-    print(
-        f"[LLM GATEWAY] "
-        f"Model={model_id} "
-        f"Latency={latency}s "
-        f"Tokens={total_tokens} "
-        f"LocalTPMEstimate={local_token_tracker.usage()}",
-        flush=True,
-    )
+                # Reconcile reservation with provider usage.
+                actual_tokens = get_provider_token_usage(
+                    response,
+                    estimated_request,
+                )
 
-    return response
+                local_token_tracker.settle(
+                    reservation_id,
+                    actual_tokens,
+                )
+
+                latency = round(
+                    time.monotonic() - start_time,
+                    3,
+                )
+
+                hidden_params = getattr(
+                    response,
+                    "_hidden_params",
+                    {},
+                ) or {}
+
+                model_id = hidden_params.get(
+                    "model_id",
+                    "unknown",
+                )
+
+                print(
+                    f"[LLM GATEWAY] "
+                    f"Model={model_id} "
+                    f"Latency={latency}s "
+                    f"Estimated={estimated_request} "
+                    f"Actual={actual_tokens} "
+                    f"RollingTPM={local_token_tracker.usage()}/"
+                    f"{local_token_tracker.tpm_limit}",
+                    flush=True,
+                )
+
+                return response
+
+            except Exception as exc:
+
+                limit_type = classify_groq_rate_limit(exc)
+
+                if limit_type == "TPD":
+                    # Daily quota exhausted: do not repeatedly retry.
+                    if reservation_id:
+                        local_token_tracker.release(reservation_id)
+                        reservation_id = None
+
+                    raise RuntimeError(
+                        "Groq daily token quota exhausted. "
+                        "Stop this workflow and wait for the provider's "
+                        "daily quota reset or use an independently available quota."
+                    ) from error
+
+                if limit_type in ("TPM", "RPM", "UNKNOWN_429"):
+
+                    if reservation_id:
+                        local_token_tracker.release(reservation_id)
+                        reservation_id = None
+
+                    if attempt >= MAX_429_RETRIES:
+                        raise
+
+                    retry_after = get_retry_after(exc)
+
+                    delay = (
+                        retry_after
+                        if retry_after is not None
+                        else min(2 ** (attempt + 1), 30) + random.uniform(0, 1)
+                    )
+
+                    print(
+                        f"[429 RETRY] Type={limit_type} "
+                        f"Attempt={attempt + 1}/{MAX_429_RETRIES} "
+                        f"Waiting={delay:.2f}s"
+                    )
+
+                    time.sleep(delay)
+
+                else:
+                    if reservation_id:
+                        local_token_tracker.settle(
+                            reservation_id,
+                            estimated_request
+                        )
+                        reservation_id = None
+
+                    raise
+
+                
+                if is_rate_limit_error(exc):
+
+                    # A confirmed 429 rejection normally
+                    # means the request was not processed.
+                    local_token_tracker.release(
+                        reservation_id
+                    )
+
+                    if attempt >= MAX_429_RETRIES:
+                        raise
+
+                    retry_after = get_retry_after(exc)
+
+                    exponential_delay = min(
+                        RETRY_MAX_SECONDS,
+                        RETRY_BASE_SECONDS * (2 ** attempt),
+                    )
+
+                    delay = (
+                        retry_after
+                        if retry_after is not None
+                        else exponential_delay
+                    )
+
+                    delay += random.uniform(0.1, 1.0)
+
+                    print(
+                        f"[429 RETRY] "
+                        f"Attempt={attempt + 1}/"
+                        f"{MAX_429_RETRIES} "
+                        f"Waiting={delay:.2f}s "
+                        f"Error={exc}",
+                        flush=True,
+                    )
+
+                    time.sleep(delay)
+                    continue
+
+                # For ordinary API errors, release the reservation.
+                # For ambiguous network timeouts, consider retaining
+                # it conservatively because the provider may have
+                # processed the request.
+                local_token_tracker.release(
+                    reservation_id
+                )
+
+                raise
+
+    finally:
+        local_token_tracker.semaphore.release()
+
+
+# def centralized_llm_call(
+#     messages,
+#     max_tokens=1000,
+#     temperature=0.2,
+#     response_format=None,
+# ):
+#     """
+#     All provider calls must pass through this function.
+
+#     Flow:
+#         Messages
+#             -> Input validation
+#             -> Prompt-injection detection
+#             -> PII redaction
+#             -> Local rate estimate
+#             -> LiteLLM Router
+#             -> Provider
+#     """
+
+#     sanitized_messages = sanitize_messages(messages)
+
+#     prompt_text = "\n".join(
+#         str(message.get("content", ""))
+#         for message in sanitized_messages
+#     )
+
+#     estimated_input = estimate_tokens(
+#         prompt_text
+#     )
+
+#     estimated_request = (
+#         estimated_input + max_tokens
+#     )
+
+#     local_token_tracker.reserve(
+#         estimated_request
+#     )
+
+#     start_time = time.time()
+
+#     call_kwargs = {
+#         "model": "travel-llm",
+#         "messages": sanitized_messages,
+#         "max_tokens": max_tokens,
+#         "temperature": temperature,
+#     }
+
+#     if response_format is not None:
+#         call_kwargs["response_format"] = response_format
+
+#     response = router.completion(
+#         **call_kwargs
+#     )
+
+#     latency = round(
+#         time.time() - start_time,
+#         3,
+#     )
+
+#     hidden_params = getattr(
+#         response,
+#         "_hidden_params",
+#         {},
+#     ) or {}
+
+#     model_id = hidden_params.get(
+#         "model_id",
+#         "unknown",
+#     )
+
+#     usage = getattr(
+#         response,
+#         "usage",
+#         None,
+#     )
+
+#     total_tokens = _usage_value(
+#         usage,
+#         "total_tokens",
+#         0,
+#     )
+
+#     print(
+#         f"[LLM GATEWAY] "
+#         f"Model={model_id} "
+#         f"Latency={latency}s "
+#         f"Tokens={total_tokens} "
+#         f"LocalTPMEstimate={local_token_tracker.usage()}",
+#         flush=True,
+#     )
+
+#     return response
 
 
 # =========================================================

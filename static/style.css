@@ -669,3 +669,175 @@ footer {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* =========================================
+   VOYAGECRAFT - PREMIUM ITINERARY DISPLAY
+========================================= */
+
+.result-section {
+    scroll-margin-top: 24px;
+    min-width: 0;
+}
+
+.result-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.result-box {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    line-height: 1.8;
+    font-size: 15px;
+    white-space: normal;
+}
+
+/* Main itinerary heading */
+.result-box h1 {
+    font-size: 27px;
+    line-height: 1.3;
+    margin: 12px 0 18px;
+}
+
+/* Section headings */
+.result-box h2 {
+    font-size: 21px;
+    margin-top: 30px;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.12);
+}
+
+.result-box h3 {
+    font-size: 17px;
+    margin-top: 22px;
+    margin-bottom: 10px;
+}
+
+.result-box p {
+    margin: 10px 0;
+    line-height: 1.8;
+}
+
+.result-box strong {
+    color: #ffffff;
+    font-weight: 700;
+}
+
+/* Tables */
+.result-box table {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    border-collapse: collapse;
+    margin: 18px 0;
+    font-size: 13px;
+}
+
+.result-box th,
+.result-box td {
+    padding: 12px;
+    border: 1px solid rgba(255,255,255,0.12);
+    text-align: left;
+    min-width: 100px;
+}
+
+.result-box th {
+    background: rgba(255,255,255,0.08);
+    font-weight: 700;
+}
+
+.result-box tr:nth-child(even) {
+    background: rgba(255,255,255,0.025);
+}
+
+/* Lists */
+.result-box ul,
+.result-box ol {
+    padding-left: 25px;
+    margin: 12px 0;
+}
+
+.result-box li {
+    margin: 8px 0;
+    line-height: 1.7;
+}
+
+/* Quotes and highlighted notes */
+.result-box blockquote {
+    margin: 18px 0;
+    padding: 14px 18px;
+    border-left: 4px solid #8b7cff;
+    background: rgba(139,124,255,0.08);
+    border-radius: 8px;
+}
+
+/* Links */
+.result-box a {
+    color: #9d92ff;
+    text-decoration: underline;
+    overflow-wrap: anywhere;
+}
+
+/* Code */
+.result-box code {
+    padding: 3px 6px;
+    border-radius: 5px;
+    background: rgba(255,255,255,0.08);
+}
+
+/* Draft and final states */
+#resultStatus.draft-status {
+    background: rgba(245,158,11,0.15);
+    color: #fbbf24;
+}
+
+#resultStatus.final-status {
+    background: rgba(34,197,94,0.15);
+    color: #4ade80;
+}
+
+/* PDF readability */
+.pdf-content {
+    background: #ffffff !important;
+    color: #222222 !important;
+}
+
+.pdf-content h1,
+.pdf-content h2,
+.pdf-content h3,
+.pdf-content strong {
+    color: #172554 !important;
+}
+
+.pdf-content table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.pdf-content th,
+.pdf-content td {
+    border: 1px solid #dddddd;
+    padding: 9px;
+    color: #222222;
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+    .result-box h1 {
+        font-size: 23px;
+    }
+
+    .result-box h2 {
+        font-size: 19px;
+    }
+
+    .result-box {
+        font-size: 14px;
+    }
+}
