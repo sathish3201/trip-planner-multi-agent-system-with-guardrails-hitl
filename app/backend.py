@@ -192,11 +192,7 @@ def serialize_result(result, thread_id, latency_ms: float = 0.0):
 
     return {
         "thread_id": thread_id,
-        answer = (
-        interrupt_payload.get("draft_itinerary", "")
-        if isinstance(interrupt_payload, dict)
-        else data.get("final_response", "")
-    )
+        "answer": answer,
 
         "requires_approval": bool(interrupt_payload),
 
