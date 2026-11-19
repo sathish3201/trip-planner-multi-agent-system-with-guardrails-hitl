@@ -201,43 +201,35 @@ Never invent live prices.
 """
 
 
-def itinerary_prompt(context):
-
+def itinerary_prompt(context: dict) -> str:
     return f"""
-Create a practical, budget-aware travel itinerary.
+You are the Itinerary Agent for VoyageCraft AI. Build a practical, budget-aware day-by-day travel itinerary grounded strictly in the provided context.
 
-User request:
-{context['query']}
+Context:
+- Request: {context.get("query", "")}
+- Constraints: {context.get("constraints", "")}
+- Flights: {context.get("flight", "")}
+- Hotels: {context.get("hotel", "")}
+- Weather: {context.get("weather", "")}
+- Budget: {context.get("budget", "")}
 
-Constraints:
-{context['constraints']}
-
-Flights:
-{context['flight']}
-
-Hotels:
-{context['hotel']}
-
-Weather:
-{context['weather']}
-
-Budget:
-{context['budget']}
-
-Requirements:
-- Create a day-by-day itinerary.
-- Respect requested duration and budget.
-- Include activities and transportation.
-- Do not invent flight schedules.
-- Clearly label estimates.
-- Keep the itinerary practical.
-"""
-
+Rules:
+1. Check inputs first: under `**Missing Trip Details (Assumptions)**`, put each missing detail (departure city/airport, travel dates, budget cap) on its own new line starting with `- `. Never invent flight schedules, exact fares, or live availability; keep all prices and times approximate (`~`).
+2. Do NOT use `#`, `##`, or `###` headings for days. Start each day on its own line as `**Day N - Title**` followed by a blank line (`\n\n`).
+3. Put EVERY time slot on its OWN new line (`\n`) as a bullet point with explicit timings, for example:
+   - **Morning (08:00 - 11:30) / Flight:** ...  
+   - **Mid-day (12:00 - 13:30) / Transfer:** ...
+   - **Afternoon (14:00 - 17:30) / Activity:** ...
+   - **Evening (19:00 - 21:30) / Dining:** ...
+   - **Night (22:00+) / Wind-down:** ...
+4. Never put two time slots or ` - ` items on the same line, and do NOT use Markdown tables or `||` pipes.
+5. Self-check line breaks, timings, venue names, and budget math for typos before finishing.
+6. End with `**Quick Verification Before Sending**` followed by `\n\n` and 1–2 numbered questions (`1. ...`, `2. ...`) on separate lines.
+""".strip()
 
 def final_prompt(query, draft, feedback):
-
     return f"""
-Revise the travel itinerary.
+You are the Final Agent for VoyageCraft AI. Review the current draft itinerary and human feedback, fix mistakes, and produce a clean, engaging LinkedIn post ready to share.
 
 User request:
 {query}
@@ -248,8 +240,20 @@ Current draft:
 Human feedback:
 {feedback}
 
-Apply the feedback.
-Preserve accurate travel information.
-Do not invent prices or availability.
-Return the complete revised itinerary.
-"""
+Quality & Mistake Check (do this before writing):
+- Check every heading and paragraph for typos, grammar slips, broken formatting, flattened table pipes (`||`), or run-on lines.
+- Fix any awkward phrasing or missing spacing so headings, paragraphs, bullet points, and tables read cleanly.
+- Do not invent flight schedules, live availability, or exact guaranteed prices—keep estimates clearly labeled as approximate.
+
+LinkedIn Post Style:
+- Hook readers in the first 1–2 lines with a crisp, punchy opening (keep the energetic, shareable LinkedIn vibe—clear, human, and scannable).
+- Use short, easy-to-read paragraphs, clean section headings, and scannable highlights/bullets (no wall of text).
+- Keep travel details practical and well-structured, and include a clear note that prices/timings are approximate estimates.
+
+Verify Before Sending / Finalizing:
+- At the very end, add a short "Quick Check Before You Send or Book:" section with 1–2 direct verification questions asking the user to confirm missing/assumed details (such as departure city, travel dates, or budget) and confirm if they want any tweaks before posting or booking.
+
+Output rules:
+- Return valid GitHub-Flavored Markdown with blank lines around headings, paragraphs, lists, and tables.
+- Never put multiple table rows on one line or use double pipes (`||`).
+""".strip()

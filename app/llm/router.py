@@ -1,7 +1,10 @@
-
+import litellm
 from litellm import Router
+from litellm.caching import Cache
 
 from app.config import GROQ_API_KEY, OPENAI_API_KEY
+
+litellm.cache = Cache(type="local")
 
 
 model_list = [
@@ -46,4 +49,5 @@ router = Router(
     routing_strategy="simple-shuffle",
     num_retries=2,
     timeout=60,
+    cache_responses=True,
 )

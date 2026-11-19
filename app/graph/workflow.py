@@ -34,6 +34,7 @@ def build_workflow(checkpointer):
     graph.add_node("weather_agent", weather_agent)
     graph.add_node("budget_agent", budget_agent)
     graph.add_node("itinerary_agent", itinerary_agent)
+    
 
     graph.add_node("human_approval", human_approval_agent)
     graph.add_node("final_agent", final_agent)

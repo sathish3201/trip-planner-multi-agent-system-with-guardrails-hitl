@@ -201,13 +201,15 @@ def supervisor_agent(state):
         "total_tokens": 0,
     }
 
-    emit_event(
-        "agent_started",
-        "Travel supervisor started."
-    )
+  
 
     try:
 
+        # emit_event(
+        #     "guardrail_started",
+        #     "Checking request safety and constraints...",
+        #     {"agent": "guardrails", "status": "RUNNING"},
+        # )
         before_guard = token_usage
 
         guardrail, token_usage = structured_invoke(
@@ -233,11 +235,7 @@ def supervisor_agent(state):
 
         if not guardrail.allowed:
 
-            emit_event(
-                "guardrail_blocked",
-                "Travel request did not pass validation."
-            )
-
+         
             telemetry = record_agent_telemetry(
                 state,
                 "supervisor",
@@ -246,6 +244,11 @@ def supervisor_agent(state):
                 100.0,
             )
 
+            emit_event(
+                            "guardrail_blocked",
+                            "Travel request did not pass validation."
+                        )
+            
             return {
                 "guardrail_allowed": False,
                 "guardrail_reason": guardrail.reason,
@@ -256,10 +259,16 @@ def supervisor_agent(state):
                 **telemetry,
             }
 
+        # emit_event(
+        # "guardrail_passed",
+        # "Request safety and constraints verified.",
+        # {"agent": "guardrails", "status": "COMPLETED"},
+        # )
+
         emit_event(
-            "guardrail_passed",
-            "Travel request passed validation."
-        )
+                "agent_started",
+                "Travel supervisor started."
+            )
 
         before_sup = token_usage
 
@@ -655,7 +664,7 @@ def itinerary_agent(state):
                 HumanMessage(content=itinerary_prompt(ctx)),
             ],
             token_usage,
-            1400,
+            2000,
         )
 
         llm_calls += 1

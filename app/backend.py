@@ -19,6 +19,7 @@ db_pool, checkpointer = create_checkpointer()
 travel_graph = build_workflow(checkpointer)
 
 
+
 def create_initial_state(user_input):
 
     return {
@@ -314,14 +315,14 @@ def stream_travel_agent(user_input: str, thread_id: str | None = None):
         "topic": user_input,
     }
 
-    yield {
-        "type": "stage",
-        "id": "guardrail",
-        "agent": "guardrail",
-        "label": "Guardrails",
-        "status": "running",
-        "detail": "Checking request safety and constraints...",
-    }
+    # yield {
+    #     "type": "stage",
+    #     "id": "guardrail",
+    #     "agent": "guardrail",
+    #     "label": "Guardrails",
+    #     "status": "running",
+    #     "detail": "Checking request safety and constraints...",
+    # }
 
     for part in travel_graph.stream(
         create_initial_state(user_input),
