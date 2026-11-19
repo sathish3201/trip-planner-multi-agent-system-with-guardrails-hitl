@@ -25,6 +25,7 @@ const AGENT_LABELS = {
   budget_agent: "💰 Budget Agent",
   itinerary: "🗓️ Itinerary Agent",
   itinerary_agent: "🗓️ Itinerary Agent",
+  approval: "🧑‍⚖️ Human Approval",
   final: "✅ Final Agent",
   final_agent: "✅ Final Agent"
 };
@@ -37,7 +38,8 @@ const STAGE_PROGRESS = {
   hotel: 62,
   weather: 74,
   budget: 86,
-  itinerary: 100,
+  itinerary: 95,
+  approval: 95,
   final: 100
 };
 
@@ -332,7 +334,7 @@ function repairLineStructure(raw) {
     "\n\n$1\n\n"
   );
 
-  // Move inline "- **Label:**" or "- Departure / Travel / Budget" bullets onto their own line
+  // Move inline "- **Label:**" or timed bullets onto their own line
   text = text.replace(/\s+-\s+(\*\*[^*\n]+:\*\*)/g, "\n- $1");
   text = text.replace(
     /\s+-\s+((?:Departure|Travel|Budget|Morning|Mid-day|Mid-afternoon|Early afternoon|Afternoon|Late afternoon|Evening|Night|Hotel|Flight|Transfer)[^:\n]*:)/g,
@@ -514,10 +516,12 @@ function renderTelemetry(data = {}) {
       : "Total tokens consumed";
   }
 
-  if (metricLlmCalls) metricLlmCalls.textContent = data.cached ? "0" : String(llmCalls);
+  if (metricLlmCalls) {
+    metricLlmCalls.textContent = data.cached ? "0 (Cached)" : String(llmCalls);
+  }
   if (metricBudgetRemaining) {
     metricBudgetRemaining.textContent = data.cached
-      ? "Cache Hit · 0 new calls"
+      ? "Cache Hit · Saved compute"
       : tokenLimit
       ? `${remainingTokens.toLocaleString()} tokens left`
       : "Model invocations";
@@ -528,8 +532,12 @@ function renderTelemetry(data = {}) {
     metricRunTime.textContent = `${Math.round(latencyMs).toLocaleString()} ms · ${completedTime}`;
   }
 
-  if (metricCost) metricCost.textContent = data.cached ? "$0.000000" : `$${costUsd.toFixed(6)}`;
-  if (metricCostInr) metricCostInr.textContent = data.cached ? "₹0.0000" : `₹${costInr.toFixed(4)}`;
+  if (metricCost) {
+    metricCost.textContent = data.cached ? "$0.000000" : `$${costUsd.toFixed(6)}`;
+  }
+  if (metricCostInr) {
+    metricCostInr.textContent = data.cached ? "₹0.0000" : `₹${costInr.toFixed(4)}`;
+  }
 
   if (metricAccuracy) metricAccuracy.textContent = `${accuracy.toFixed(1)}%`;
   if (metricAccuracyDetail) {
@@ -668,7 +676,10 @@ function showApproval(data = {}) {
   }
 
   if (sendBtn) sendBtn.disabled = true;
-  if (section) section.classList.remove("hidden");
+  if (section) {
+    section.classList.remove("hidden");
+    section.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
 }
 
 function hideApproval() {
@@ -771,12 +782,28 @@ function handleStreamEvent(event) {
 
       const planMarkdown =
         payload.itinerary || payload.answer || latestAnswerMarkdown;
+
       if (payload.requires_approval) {
+        upsertAgentCard(
+          "itinerary",
+          "🗓️ Itinerary Agent",
+          "completed",
+          "Draft ready"
+        );
+        upsertAgentCard(
+          "approval",
+          "🧑‍⚖️ Human Approval",
+          "running",
+          "Waiting for your review"
+        );
         setProgress(95, "Draft ready — waiting for your approval");
         showResult(planMarkdown, payload.thread_id, true);
         showApproval(payload);
       } else {
-        setProgress(100, payload.cached ? "Itinerary loaded from cache" : "Itinerary ready");
+        setProgress(
+          100,
+          payload.cached ? "Itinerary loaded from cache" : "Itinerary ready"
+        );
         hideApproval();
         showResult(planMarkdown, payload.thread_id, false);
       }
@@ -964,9 +991,21 @@ async function submitApproval(approved) {
     const nextPlan = data.itinerary || data.answer || latestAnswerMarkdown;
 
     if (data.requires_approval) {
+      upsertAgentCard(
+        "approval",
+        "🧑‍⚖️ Human Approval",
+        "running",
+        "Waiting for additional review"
+      );
       showResult(nextPlan, data.thread_id, true);
       showApproval(data);
     } else {
+      upsertAgentCard(
+        "approval",
+        "🧑‍⚖️ Human Approval",
+        "completed",
+        approved ? "Approved" : "Revised"
+      );
       setProgress(100, "Completed");
       hideApproval();
       showResult(nextPlan, data.thread_id, false);

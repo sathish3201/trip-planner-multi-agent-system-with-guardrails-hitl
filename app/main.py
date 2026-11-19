@@ -13,6 +13,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
 from app.backend import (
+    CACHE_TTL_SECONDS,
     resume_travel_agent,
     run_travel_agent,
     stream_travel_agent,
@@ -32,13 +33,20 @@ STATIC_DIR = BASE_DIR / "static"
 # FASTAPI APPLICATION
 # =========================================================
 
+class NoCacheStaticFiles(StaticFiles):
+    async def get_response(self, path: str, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-store, must-revalidate"
+        return response
+
+
 app = FastAPI(
     title="VoyageCraft AI — Modular Travel Agent",
     description="Multi-Agent AI Travel Planner with Streaming and Human Approval",
     version="1.0.0",
 )
 
-app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+app.mount("/static", NoCacheStaticFiles(directory=str(STATIC_DIR)), name="static")
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
@@ -215,6 +223,7 @@ def health():
     return {
         "status": "ok",
         "application": "Modular Travel Agent",
+        "cache_ttl_seconds": CACHE_TTL_SECONDS,
         "features": [
             "multi_agent_travel_planning",
             "langgraph_streaming",
@@ -223,6 +232,7 @@ def health():
             "human_approval",
             "checkpoint_persistence",
             "agent_telemetry",
+            "query_cache",
         ],
     }
 

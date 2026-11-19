@@ -1,3 +1,4 @@
+import threading
 import time
 import uuid
 from typing import Any
@@ -18,6 +19,47 @@ db_pool, checkpointer = create_checkpointer()
 
 travel_graph = build_workflow(checkpointer)
 
+
+# =========================================================
+# QUERY-LEVEL TTL CACHE
+# =========================================================
+
+_QUERY_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+_CACHE_LOCK = threading.Lock()
+CACHE_TTL_SECONDS = 3600  # 1 hour
+
+
+def _normalize_query(query: str) -> str:
+    return " ".join(query.strip().lower().split())
+
+
+def get_cached_result(query: str) -> dict[str, Any] | None:
+    key = _normalize_query(query)
+    with _CACHE_LOCK:
+        entry = _QUERY_CACHE.get(key)
+        if not entry:
+            return None
+
+        created_at, payload = entry
+        if time.time() - created_at > CACHE_TTL_SECONDS:
+            _QUERY_CACHE.pop(key, None)
+            return None
+
+        return dict(payload)
+
+
+def set_cached_result(query: str, serialized: dict[str, Any]) -> None:
+    # Never cache blocked requests, empty answers, or runs paused for human approval.
+    if (
+        serialized.get("guardrail_allowed") is False
+        or serialized.get("requires_approval")
+        or not str(serialized.get("answer", "")).strip()
+    ):
+        return
+
+    key = _normalize_query(query)
+    with _CACHE_LOCK:
+        _QUERY_CACHE[key] = (time.time(), dict(serialized))
 
 
 def create_initial_state(user_input):
@@ -68,7 +110,7 @@ def _extract_node_progress(payload: Any) -> list[dict[str, Any]]:
         return events
 
     for node_name, node_state in payload.items():
-        if not isinstance(node_state, dict):
+        if node_name == "__interrupt__" or not isinstance(node_state, dict):
             continue
 
         clean_agent = str(node_name).removesuffix("_agent")
@@ -155,26 +197,63 @@ def _compute_fallback_accuracy(data: dict[str, Any]) -> float:
     return round((completed / len(selected)) * 100, 1)
 
 
-def serialize_result(result, thread_id, latency_ms: float = 0.0):
+def _extract_interrupts(snapshot: Any, data: dict[str, Any], streamed_interrupts: list[Any] | None = None) -> list[Any]:
+    # 1. Parent snapshot interrupts (LangGraph StateSnapshot.interrupts)
+    snap_interrupts = list(getattr(snapshot, "interrupts", None) or [])
+    if snap_interrupts:
+        return snap_interrupts
+
+    # 2. Subgraph task interrupts if get_state(..., subgraphs=True) was used
+    for task in getattr(snapshot, "tasks", None) or []:
+        task_interrupts = list(getattr(task, "interrupts", None) or [])
+        if task_interrupts:
+            return task_interrupts
+
+    # 3. Interrupts captured directly from stream updates
+    if streamed_interrupts:
+        return list(streamed_interrupts)
+
+    # 4. Legacy __interrupt__ key in result dict
+    return list(data.get("__interrupt__", []) or [])
+
+
+def serialize_result(
+    result,
+    thread_id,
+    latency_ms: float = 0.0,
+    snapshot: Any = None,
+    streamed_interrupts: list[Any] | None = None,
+):
 
     data = result or {}
-    interrupt_list = data.get("__interrupt__", [])
+    interrupt_list = _extract_interrupts(snapshot, data, streamed_interrupts)
 
     interrupt_payload = None
-
     if interrupt_list:
+        first_interrupt = interrupt_list[0]
+        interrupt_payload = getattr(first_interrupt, "value", first_interrupt)
 
-        interrupt_payload = getattr(
-            interrupt_list[0],
-            "value",
-            {},
+    requires_approval = bool(interrupt_payload)
+
+    if isinstance(interrupt_payload, dict):
+        answer = (
+            interrupt_payload.get("draft_itinerary")
+            or interrupt_payload.get("itinerary")
+            or data.get("itinerary")
+            or data.get("final_response", "")
         )
-
-    answer = (
-        interrupt_payload.get("draft_itinerary", "")
-        if isinstance(interrupt_payload, dict)
-        else data.get("final_response", "")
-    )
+        approval_req = (
+            interrupt_payload.get("message")
+            or interrupt_payload.get("approval_request")
+            or data.get("approval_request", "")
+        )
+    else:
+        answer = data.get("final_response") or data.get("itinerary", "")
+        approval_req = (
+            str(interrupt_payload)
+            if interrupt_payload
+            else data.get("approval_request", "")
+        )
 
     token_usage = int(data.get("token_usage", 0) or 0)
     agent_metrics = data.get("agent_metrics") or {}
@@ -194,12 +273,10 @@ def serialize_result(result, thread_id, latency_ms: float = 0.0):
     return {
         "thread_id": thread_id,
         "answer": answer,
+        "cached": False,
 
-        "requires_approval": bool(interrupt_payload),
-
-        "approval_request": data.get(
-            "approval_request", ""
-        ),
+        "requires_approval": requires_approval,
+        "approval_request": approval_req,
 
         "flight_results": data.get("flight_results", ""),
         "hotel_results": data.get("hotel_results", ""),
@@ -235,8 +312,19 @@ def serialize_result(result, thread_id, latency_ms: float = 0.0):
 def run_travel_agent(user_input, thread_id=None):
 
     user_input = validate_input(user_input)
+    thread_id = f"user_{uuid.uuid4().hex}"
 
-    thread_id = thread_id or f"user_{uuid.uuid4().hex}"
+    started_at = time.perf_counter()
+    cached = get_cached_result(user_input)
+    if cached is not None:
+        elapsed_ms = round((time.perf_counter() - started_at) * 1000, 1)
+        cached.update({
+            "thread_id": thread_id,
+            "cached": True,
+            "overall_latency_ms": elapsed_ms,
+            "overall_latency_seconds": round(elapsed_ms / 1000, 2),
+        })
+        return cached
 
     config = {
         "configurable": {
@@ -244,16 +332,22 @@ def run_travel_agent(user_input, thread_id=None):
         }
     }
 
-    started_at = time.perf_counter()
-
     result = travel_graph.invoke(
         create_initial_state(user_input),
         config=config,
     )
 
+    snapshot = travel_graph.get_state(config, subgraphs=True)
     elapsed_ms = round((time.perf_counter() - started_at) * 1000, 1)
+    serialized = serialize_result(
+        result,
+        thread_id,
+        latency_ms=elapsed_ms,
+        snapshot=snapshot,
+    )
+    set_cached_result(user_input, serialized)
 
-    return serialize_result(result, thread_id, latency_ms=elapsed_ms)
+    return serialized
 
 
 def resume_travel_agent(
@@ -292,20 +386,28 @@ def resume_travel_agent(
         config=config,
     )
 
+    snapshot = travel_graph.get_state(config, subgraphs=True)
     elapsed_ms = round((time.perf_counter() - started_at) * 1000, 1)
 
-    return serialize_result(result, thread_id, latency_ms=elapsed_ms)
+    serialized = serialize_result(
+        result,
+        thread_id,
+        latency_ms=elapsed_ms,
+        snapshot=snapshot,
+    )
+
+    # Cache the final approved itinerary under its original user query
+    original_query = (result or {}).get("user_query", "")
+    if original_query:
+        set_cached_result(original_query, serialized)
+
+    return serialized
 
 
 def stream_travel_agent(user_input: str, thread_id: str | None = None):
     user_input = validate_input(user_input)
-    thread_id = thread_id or f"user_{uuid.uuid4().hex}"
-
-    config = {
-        "configurable": {
-            "thread_id": thread_id,
-        }
-    }
+    # Fresh thread_id per new request prevents stale checkpoints from colliding.
+    thread_id = f"user_{uuid.uuid4().hex}"
 
     started_at = time.perf_counter()
 
@@ -315,14 +417,44 @@ def stream_travel_agent(user_input: str, thread_id: str | None = None):
         "topic": user_input,
     }
 
-    # yield {
-    #     "type": "stage",
-    #     "id": "guardrail",
-    #     "agent": "guardrail",
-    #     "label": "Guardrails",
-    #     "status": "running",
-    #     "detail": "Checking request safety and constraints...",
-    # }
+    cached = get_cached_result(user_input)
+    if cached is not None:
+        elapsed_ms = round((time.perf_counter() - started_at) * 1000, 1)
+        cached.update({
+            "thread_id": thread_id,
+            "cached": True,
+            "overall_latency_ms": elapsed_ms,
+            "overall_latency_seconds": round(elapsed_ms / 1000, 2),
+        })
+        print(f"[CACHE HIT] query={_normalize_query(user_input)!r}")
+
+        yield {
+            "type": "status",
+            "thread_id": thread_id,
+            "content": "Loaded itinerary from cache.",
+        }
+
+        yield {
+            "type": "final",
+            "thread_id": thread_id,
+            "result": cached,
+        }
+
+        yield {
+            "type": "done",
+            "thread_id": thread_id,
+        }
+        return
+
+    print(f"[CACHE MISS] query={_normalize_query(user_input)!r}")
+
+    config = {
+        "configurable": {
+            "thread_id": thread_id,
+        }
+    }
+
+    streamed_interrupts: list[Any] = []
 
     for part in travel_graph.stream(
         create_initial_state(user_input),
@@ -358,18 +490,34 @@ def stream_travel_agent(user_input: str, thread_id: str | None = None):
                 }
 
         elif part_type == "updates":
+            if isinstance(payload, dict) and "__interrupt__" in payload:
+                raw_intr = payload["__interrupt__"]
+                if isinstance(raw_intr, (list, tuple)):
+                    streamed_interrupts.extend(raw_intr)
+                elif raw_intr:
+                    streamed_interrupts.append(raw_intr)
+
             for stage_evt in _extract_node_progress(payload):
                 stage_evt["thread_id"] = thread_id
                 yield stage_evt
 
-    snapshot = travel_graph.get_state(config)
+    snapshot = travel_graph.get_state(config, subgraphs=True)
     result = snapshot.values if snapshot else {}
     elapsed_ms = round((time.perf_counter() - started_at) * 1000, 1)
+
+    serialized = serialize_result(
+        result,
+        thread_id,
+        latency_ms=elapsed_ms,
+        snapshot=snapshot,
+        streamed_interrupts=streamed_interrupts,
+    )
+    set_cached_result(user_input, serialized)
 
     yield {
         "type": "final",
         "thread_id": thread_id,
-        "result": serialize_result(result, thread_id, latency_ms=elapsed_ms),
+        "result": serialized,
     }
 
     yield {
