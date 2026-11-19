@@ -14,6 +14,7 @@ const AGENT_LABELS = {
   supervisor: "🧭 Supervisor",
   guardrail: "🛡️ Guardrails",
   guardrails: "🛡️ Guardrails",
+  guardrail_blocked: "🛑 Guardrail Block",
   flight: "✈️ Flight Agent",
   flight_agent: "✈️ Flight Agent",
   hotel: "🏨 Hotel Agent",
@@ -23,7 +24,9 @@ const AGENT_LABELS = {
   budget: "💰 Budget Agent",
   budget_agent: "💰 Budget Agent",
   itinerary: "🗓️ Itinerary Agent",
-  itinerary_agent: "🗓️ Itinerary Agent"
+  itinerary_agent: "🗓️ Itinerary Agent",
+  final: "✅ Final Agent",
+  final_agent: "✅ Final Agent"
 };
 
 const STAGE_PROGRESS = {
@@ -34,7 +37,8 @@ const STAGE_PROGRESS = {
   hotel: 62,
   weather: 74,
   budget: 86,
-  itinerary: 100
+  itinerary: 100,
+  final: 100
 };
 
 function getEl(id) {
@@ -241,13 +245,127 @@ function hideError() {
 function renderMarkdown(element, markdown) {
   if (!element) return;
 
-  const source = String(markdown ?? "");
+  const source = String(markdown ?? "").replace(/\r\n/g, "\n");
   if (typeof marked !== "undefined" && typeof marked.parse === "function") {
-    const html = marked.parse(source);
+    const html = marked.parse(source, { gfm: true, breaks: true });
     element.innerHTML = typeof DOMPurify !== "undefined" ? DOMPurify.sanitize(html) : html;
   } else {
     element.textContent = source;
   }
+}
+
+
+/* =========================================================
+   TELEMETRY PANEL (TOKENS, LLM CALLS, LATENCY, COST, ACCURACY)
+   ========================================================= */
+
+function renderTelemetry(data = {}) {
+  const panel = getEl("telemetrySection");
+  if (!panel) return;
+
+  const totalTokens = Number(data.token_usage ?? 0);
+  const tokenLimit = Number(data.token_limit ?? 0);
+  const remainingTokens = Number(
+    data.remaining_tokens ?? Math.max(0, tokenLimit - totalTokens)
+  );
+  const llmCalls = Number(data.llm_calls ?? 0);
+
+  const latencyMs = Number(data.overall_latency_ms ?? data.latency_ms ?? 0);
+  const latencySec = (latencyMs / 1000).toFixed(2);
+  const completedTime = new Date().toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+  });
+
+  const costUsd = Number(data.total_cost_usd ?? 0);
+  const costInr = Number(data.total_cost_inr ?? costUsd * 84);
+  const accuracy = Number(data.overall_accuracy ?? data.accuracy_score ?? 100);
+
+  const agentMetrics =
+    data.agent_metrics && typeof data.agent_metrics === "object"
+      ? data.agent_metrics
+      : {};
+
+  let inputSum = 0;
+  let outputSum = 0;
+  Object.values(agentMetrics).forEach((m) => {
+    inputSum += Number(m?.input_tokens ?? 0);
+    outputSum += Number(m?.output_tokens ?? 0);
+  });
+
+  const metricTokens = getEl("metricTokens");
+  const metricTokenBreakdown = getEl("metricTokenBreakdown");
+  const metricLlmCalls = getEl("metricLlmCalls");
+  const metricBudgetRemaining = getEl("metricBudgetRemaining");
+  const metricLatency = getEl("metricLatency");
+  const metricRunTime = getEl("metricRunTime");
+  const metricCost = getEl("metricCost");
+  const metricCostInr = getEl("metricCostInr");
+  const metricAccuracy = getEl("metricAccuracy");
+  const metricAccuracyDetail = getEl("metricAccuracyDetail");
+
+  if (metricTokens) metricTokens.textContent = totalTokens.toLocaleString();
+  if (metricTokenBreakdown) {
+    metricTokenBreakdown.textContent =
+      inputSum || outputSum
+        ? `Input: ${inputSum.toLocaleString()} · Output: ${outputSum.toLocaleString()}`
+        : tokenLimit
+        ? `Limit: ${tokenLimit.toLocaleString()}`
+        : "Total tokens consumed";
+  }
+
+  if (metricLlmCalls) metricLlmCalls.textContent = String(llmCalls);
+  if (metricBudgetRemaining) {
+    metricBudgetRemaining.textContent = tokenLimit
+      ? `${remainingTokens.toLocaleString()} tokens left`
+      : "Model invocations";
+  }
+
+  if (metricLatency) metricLatency.textContent = `${latencySec}s`;
+  if (metricRunTime) {
+    metricRunTime.textContent = `${Math.round(latencyMs).toLocaleString()} ms · ${completedTime}`;
+  }
+
+  if (metricCost) metricCost.textContent = `$${costUsd.toFixed(6)}`;
+  if (metricCostInr) metricCostInr.textContent = `₹${costInr.toFixed(4)}`;
+
+  if (metricAccuracy) metricAccuracy.textContent = `${accuracy.toFixed(1)}%`;
+  if (metricAccuracyDetail) {
+    metricAccuracyDetail.textContent =
+      data.guardrail_allowed === false
+        ? "Blocked by guardrails"
+        : `${Object.keys(agentMetrics).length || (data.selected_agents || []).length} stages evaluated`;
+  }
+
+  const listEl = getEl("agentTelemetryList");
+  if (listEl) {
+    const entries = Object.entries(agentMetrics);
+    if (!entries.length) {
+      listEl.replaceChildren();
+    } else {
+      listEl.innerHTML = entries
+        .map(([agentName, m]) => {
+          const label = escapeHtml(formatAgentLabel(agentName));
+          const aTokens = Number(m?.tokens ?? 0).toLocaleString();
+          const aLat = Number(
+            m?.latency_s ?? (m?.latency_ms ?? 0) / 1000
+          ).toFixed(2);
+          const aCostUsd = Number(m?.cost_usd ?? 0).toFixed(6);
+          const aAcc = Number(m?.accuracy ?? 100).toFixed(1);
+          return `
+            <div class="agent-metric-item">
+              <div class="agent-metric-title">${label}</div>
+              <div>Tokens: <strong>${aTokens}</strong> · Accuracy: <strong>${aAcc}%</strong></div>
+              <div>Latency: <strong>${aLat}s</strong> · Cost: <strong>$${aCostUsd}</strong></div>
+            </div>
+          `;
+        })
+        .join("");
+    }
+  }
+
+  panel.classList.remove("hidden");
 }
 
 
@@ -270,7 +388,12 @@ function showWorkflow(data = {}) {
     data.selected_agents.forEach((agent) => {
       const id = normalizeStageId(agent);
       if (!document.getElementById(`agent-card-${id}`)) {
-        upsertAgentCard(agent, formatAgentLabel(agent), "running", "Queued by supervisor");
+        upsertAgentCard(
+          agent,
+          formatAgentLabel(agent),
+          "running",
+          "Queued by supervisor"
+        );
       }
     });
   }
@@ -318,7 +441,9 @@ function showResult(answer, threadId, isDraft = false) {
   }
 
   if (resultTitle) {
-    resultTitle.textContent = isDraft ? "Draft Travel Plan" : "Your Custom Itinerary";
+    resultTitle.textContent = isDraft
+      ? "Draft Travel Plan"
+      : "Your Custom Itinerary";
   }
 
   if (resultSection) {
@@ -421,11 +546,14 @@ function handleStreamEvent(event) {
       }
 
       showWorkflow(payload);
+      renderTelemetry(payload);
+
       (payload.selected_agents || []).forEach((agent) => {
         upsertAgentCard(agent, formatAgentLabel(agent), "completed", "Done");
       });
 
-      const planMarkdown = payload.itinerary || payload.answer || latestAnswerMarkdown;
+      const planMarkdown =
+        payload.itinerary || payload.answer || latestAnswerMarkdown;
       if (payload.requires_approval) {
         setProgress(95, "Draft ready — waiting for your approval");
         showResult(planMarkdown, payload.thread_id, true);
@@ -446,7 +574,9 @@ function handleStreamEvent(event) {
     }
 
     case "error": {
-      throw new Error(event.message || event.error || "Streaming error encountered.");
+      throw new Error(
+        event.message || event.error || "Streaming error encountered."
+      );
     }
 
     default: {
@@ -479,7 +609,9 @@ async function sendMessage() {
   abortActiveStream();
 
   if (waitingForApproval) {
-    showError("Please approve or revise the current draft before starting another plan.");
+    showError(
+      "Please approve or revise the current draft before starting another plan."
+    );
     return;
   }
 
@@ -494,10 +626,16 @@ async function sendMessage() {
 
   latestAnswerMarkdown = "";
   getEl("resultSection")?.classList.add("hidden");
+  getEl("telemetrySection")?.classList.add("hidden");
   renderMarkdown(getEl("resultBox"), "");
   resetAgentProgress();
   setProgress(10, "Connecting to travel workflow...");
-  upsertAgentCard("supervisor", "🧭 Supervisor", "running", "Routing your request...");
+  upsertAgentCard(
+    "supervisor",
+    "🧭 Supervisor",
+    "running",
+    "Routing your request..."
+  );
   setLoading(true, "draft");
 
   activeAbortController = new AbortController();
@@ -517,7 +655,9 @@ async function sendMessage() {
     });
 
     if (!response.ok) {
-      throw new Error((await response.text()) || "Could not start travel workflow.");
+      throw new Error(
+        (await response.text()) || "Could not start travel workflow."
+      );
     }
 
     if (!response.body) {
@@ -532,7 +672,9 @@ async function sendMessage() {
       const { done, value } = await reader.read();
       if (done) break;
 
-      buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
+      buffer += decoder
+        .decode(value, { stream: true })
+        .replace(/\r\n/g, "\n");
       buffer = parseSSEBuffer(buffer);
     }
 
@@ -572,7 +714,10 @@ async function submitApproval(approved) {
   }
 
   setLoading(true, "approval");
-  setProgress(96, approved ? "Finalizing approved plan..." : "Applying revision feedback...");
+  setProgress(
+    96,
+    approved ? "Finalizing approved plan..." : "Applying revision feedback..."
+  );
 
   try {
     const response = await fetch("/api/approval", {
@@ -587,7 +732,9 @@ async function submitApproval(approved) {
 
     const data = await response.json();
     if (!response.ok || data.success === false) {
-      throw new Error(data.error || data.detail || "Could not resume travel workflow.");
+      throw new Error(
+        data.error || data.detail || "Could not resume travel workflow."
+      );
     }
 
     if (data.thread_id) {
@@ -596,6 +743,7 @@ async function submitApproval(approved) {
     }
 
     showWorkflow(data);
+    renderTelemetry(data);
     const nextPlan = data.itinerary || data.answer || latestAnswerMarkdown;
 
     if (data.requires_approval) {

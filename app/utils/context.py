@@ -114,35 +114,34 @@ def compact_records(
         max_chars,
     )
 
-
 def build_agent_context(state):
 
     return {
         "query": limit_context(
-            state.get("user_query"), 800
+            state.get("user_query"), 600
         ),
 
         "constraints": limit_context(
-            state.get("trip_constraints"), 500
+            state.get("trip_constraints"), 650
         ),
 
         "flight": limit_context(
-            state.get("flight_results"), 900
+            state.get("flight_results"), 1400
         ),
 
         "hotel": limit_context(
-            state.get("hotel_results"), 1000
+            state.get("hotel_results"), 1450
         ),
 
         "weather": limit_context(
-            state.get("weather_results"), 600
+            state.get("weather_results"), 800
         ),
 
         "budget": limit_context(
-            state.get("budget_results"), 800
+            state.get("budget_results"), 1150
         ),
 
         "itinerary": limit_context(
-            state.get("itinerary"), 1800
+            state.get("itinerary"), 1850
         ),
     }

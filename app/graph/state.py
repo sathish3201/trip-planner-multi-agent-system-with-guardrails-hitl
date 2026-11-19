@@ -1,8 +1,9 @@
-
 import operator
+from typing import Annotated, Any, TypedDict
 
-from typing import TypedDict, Annotated
 from langchain_core.messages import AnyMessage
+
+from app.utils.telemetry import merge_agent_metrics
 
 
 class TravelState(TypedDict, total=False):
@@ -37,3 +38,12 @@ class TravelState(TypedDict, total=False):
     llm_calls: int
     token_usage: int
     token_limit: int
+
+    agent_metrics: Annotated[
+        dict[str, dict[str, Any]],
+        merge_agent_metrics,
+    ]
+    overall_latency_ms: float
+    total_cost_usd: float
+    total_cost_inr: float
+    overall_accuracy: float

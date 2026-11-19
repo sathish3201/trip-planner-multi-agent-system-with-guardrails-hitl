@@ -1,49 +1,51 @@
-
-from langgraph.config import get_stream_writer
-
-from langchain_core.messages import (
-    SystemMessage,
-    HumanMessage,
-    AIMessage,
-)
-
-from pydantic import BaseModel, Field
+import time
 from typing import Literal
 
-from app.utils.token_utils import budgeted_invoke
-from app.utils.context import (
-    limit_context,
-    compact_records,
-    build_agent_context,
+from langchain_core.messages import (
+    AIMessage,
+    HumanMessage,
+    SystemMessage,
 )
+from langgraph.config import get_stream_writer
+from langgraph.types import interrupt
+from pydantic import BaseModel, Field
 
 from app.prompts import (
-    GUARDRAIL_SYSTEM_PROMPT,
-    SUPERVISOR_SYSTEM_PROMPT,
-    FLIGHT_SYSTEM_PROMPT,
-    HOTEL_SYSTEM_PROMPT,
-    WEATHER_SYSTEM_PROMPT,
     BUDGET_SYSTEM_PROMPT,
-    ITINERARY_SYSTEM_PROMPT,
     FINAL_SYSTEM_PROMPT,
-    supervisor_prompt,
+    FLIGHT_SYSTEM_PROMPT,
+    GUARDRAIL_SYSTEM_PROMPT,
+    HOTEL_SYSTEM_PROMPT,
+    ITINERARY_SYSTEM_PROMPT,
+    SUPERVISOR_SYSTEM_PROMPT,
+    WEATHER_SYSTEM_PROMPT,
+    budget_prompt,
+    final_prompt,
     flight_prompt,
     hotel_prompt,
-    weather_prompt,
-    budget_prompt,
     itinerary_prompt,
-    final_prompt,
+    supervisor_prompt,
+    weather_prompt,
 )
-
+from app.utils.async_utils import run_async
+from app.utils.context import (
+    build_agent_context,
+    compact_records,
+    limit_context,
+)
+from app.utils.telemetry import (
+    extract_token_breakdown,
+    record_agent_telemetry,
+    score_text_accuracy,
+)
+from app.utils.token_utils import budgeted_invoke
 from mcp_client import (
-    tavily_mcp_search,
     aviation_mcp_call,
     extract_destination,
     forecast_mcp_search,
+    tavily_mcp_search,
     weather_mcp_search,
 )
-
-from app.utils.async_utils import run_async
 
 
 # =====================================================
@@ -184,6 +186,8 @@ AGENT_ORDER = [
 
 def supervisor_agent(state):
 
+    started_at = time.perf_counter()
+
     query = limit_context(
         state.get("user_query"),
         800,
@@ -191,6 +195,11 @@ def supervisor_agent(state):
 
     token_usage = state.get("token_usage", 0)
     llm_calls = state.get("llm_calls", 0)
+    agent_tokens = {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0,
+    }
 
     emit_event(
         "agent_started",
@@ -198,6 +207,8 @@ def supervisor_agent(state):
     )
 
     try:
+
+        before_guard = token_usage
 
         guardrail, token_usage = structured_invoke(
             "guardrail",
@@ -213,12 +224,26 @@ def supervisor_agent(state):
         )
 
         llm_calls += 1
+        g_usage = extract_token_breakdown(
+            None, before_guard, token_usage
+        )
+        agent_tokens["input_tokens"] += g_usage["input_tokens"]
+        agent_tokens["output_tokens"] += g_usage["output_tokens"]
+        agent_tokens["total_tokens"] += g_usage["total_tokens"]
 
         if not guardrail.allowed:
 
             emit_event(
                 "guardrail_blocked",
                 "Travel request did not pass validation."
+            )
+
+            telemetry = record_agent_telemetry(
+                state,
+                "supervisor",
+                started_at,
+                agent_tokens,
+                100.0,
             )
 
             return {
@@ -228,12 +253,15 @@ def supervisor_agent(state):
                 "selected_agents": [],
                 "token_usage": token_usage,
                 "llm_calls": llm_calls,
+                **telemetry,
             }
 
         emit_event(
             "guardrail_passed",
             "Travel request passed validation."
         )
+
+        before_sup = token_usage
 
         result, token_usage = structured_invoke(
             "supervisor",
@@ -247,10 +275,16 @@ def supervisor_agent(state):
             ],
             token_usage,
             SupervisorResult,
-            500,
+            600,
         )
 
         llm_calls += 1
+        s_usage = extract_token_breakdown(
+            None, before_sup, token_usage
+        )
+        agent_tokens["input_tokens"] += s_usage["input_tokens"]
+        agent_tokens["output_tokens"] += s_usage["output_tokens"]
+        agent_tokens["total_tokens"] += s_usage["total_tokens"]
 
         selected = [
             name
@@ -262,6 +296,7 @@ def supervisor_agent(state):
             selected.append("itinerary_agent")
 
         constraints = result.trip_constraints.model_dump()
+        accuracy = 100.0 if constraints.get("destination") else 80.0
 
         emit_event(
             "agents_selected",
@@ -272,6 +307,14 @@ def supervisor_agent(state):
             }
         )
 
+        telemetry = record_agent_telemetry(
+            state,
+            "supervisor",
+            started_at,
+            agent_tokens,
+            accuracy,
+        )
+
         return {
             "guardrail_allowed": True,
             "guardrail_reason": guardrail.reason,
@@ -280,6 +323,7 @@ def supervisor_agent(state):
             "supervisor_reasoning": result.reasoning,
             "token_usage": token_usage,
             "llm_calls": llm_calls,
+            **telemetry,
         }
 
     except Exception as exc:
@@ -290,12 +334,21 @@ def supervisor_agent(state):
             {"error": str(exc)}
         )
 
+        telemetry = record_agent_telemetry(
+            state,
+            "supervisor",
+            started_at,
+            agent_tokens,
+            0.0,
+        )
+
         return {
             "guardrail_allowed": False,
             "final_response": "Unable to plan the travel request.",
             "selected_agents": [],
             "token_usage": token_usage,
             "llm_calls": llm_calls,
+            **telemetry,
         }
 
 
@@ -305,12 +358,17 @@ def supervisor_agent(state):
 
 def flight_agent(state):
 
+    started_at = time.perf_counter()
+
     emit_event("agent_started", "Flight agent started.")
 
     constraints = state.get("trip_constraints", {})
 
     token_usage = state.get("token_usage", 0)
     llm_calls = state.get("llm_calls", 0)
+    before_tokens = token_usage
+    response = None
+    accuracy = 100.0
 
     try:
 
@@ -351,22 +409,39 @@ def flight_agent(state):
                 HumanMessage(content=prompt),
             ],
             token_usage,
-            500,
+            1200,
         )
 
         llm_calls += 1
         result = response.content
+        accuracy = score_text_accuracy(
+            result,
+            error_prefixes=("Flight information unavailable:",),
+        )
 
     except Exception as exc:
 
         result = f"Flight information unavailable: {exc}"
+        accuracy = 25.0
+
+    breakdown = extract_token_breakdown(
+        response, before_tokens, token_usage
+    )
+    telemetry = record_agent_telemetry(
+        state,
+        "flight_agent",
+        started_at,
+        breakdown,
+        accuracy,
+    )
 
     emit_event("agent_completed", "Flight agent completed.")
 
     return {
-        "flight_results": limit_context(result, 1200),
+        "flight_results": result,
         "token_usage": token_usage,
         "llm_calls": llm_calls,
+        **telemetry,
     }
 
 
@@ -375,6 +450,8 @@ def flight_agent(state):
 # =====================================================
 
 def hotel_agent(state):
+
+    started_at = time.perf_counter()
 
     emit_event("agent_started", "Hotel agent started.")
 
@@ -400,14 +477,28 @@ def hotel_agent(state):
             max_items=5,
             max_chars=1400,
         )
+        accuracy = score_text_accuracy(
+            result,
+            error_prefixes=("Hotel information unavailable:",),
+        )
 
     except Exception as exc:
         result = f"Hotel information unavailable: {exc}"
+        accuracy = 25.0
+
+    telemetry = record_agent_telemetry(
+        state,
+        "hotel_agent",
+        started_at,
+        {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
+        accuracy,
+    )
 
     emit_event("agent_completed", "Hotel agent completed.")
 
     return {
-        "hotel_results": limit_context(result, 1400)
+        "hotel_results": limit_context(result, 1400),
+        **telemetry,
     }
 
 
@@ -416,6 +507,8 @@ def hotel_agent(state):
 # =====================================================
 
 def weather_agent(state):
+
+    started_at = time.perf_counter()
 
     emit_event("agent_started", "Weather agent started.")
 
@@ -450,14 +543,28 @@ def weather_agent(state):
             current_text,
             forecast_text,
         )
+        accuracy = score_text_accuracy(
+            response,
+            error_prefixes=("Weather information unavailable:",),
+        )
 
     except Exception as exc:
         response = f"Weather information unavailable: {exc}"
+        accuracy = 25.0
+
+    telemetry = record_agent_telemetry(
+        state,
+        "weather_agent",
+        started_at,
+        {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
+        accuracy,
+    )
 
     emit_event("agent_completed", "Weather agent completed.")
 
     return {
-        "weather_results": limit_context(response, 900)
+        "weather_results": limit_context(response, 900),
+        **telemetry,
     }
 
 
@@ -467,12 +574,16 @@ def weather_agent(state):
 
 def budget_agent(state):
 
+    started_at = time.perf_counter()
+
     emit_event("agent_started", "Budget agent started.")
 
     ctx = build_agent_context(state)
 
     token_usage = state.get("token_usage", 0)
     llm_calls = state.get("llm_calls", 0)
+    before_tokens = token_usage
+    response = None
 
     try:
 
@@ -488,9 +599,25 @@ def budget_agent(state):
 
         llm_calls += 1
         result = response.content
+        accuracy = score_text_accuracy(
+            result,
+            error_prefixes=("Budget analysis unavailable:",),
+        )
 
     except Exception as exc:
         result = f"Budget analysis unavailable: {exc}"
+        accuracy = 25.0
+
+    breakdown = extract_token_breakdown(
+        response, before_tokens, token_usage
+    )
+    telemetry = record_agent_telemetry(
+        state,
+        "budget_agent",
+        started_at,
+        breakdown,
+        accuracy,
+    )
 
     emit_event("agent_completed", "Budget agent completed.")
 
@@ -498,6 +625,7 @@ def budget_agent(state):
         "budget_results": limit_context(result, 1000),
         "token_usage": token_usage,
         "llm_calls": llm_calls,
+        **telemetry,
     }
 
 
@@ -507,12 +635,16 @@ def budget_agent(state):
 
 def itinerary_agent(state):
 
+    started_at = time.perf_counter()
+
     emit_event("agent_started", "Itinerary agent started.")
 
     ctx = build_agent_context(state)
 
     token_usage = state.get("token_usage", 0)
     llm_calls = state.get("llm_calls", 0)
+    before_tokens = token_usage
+    response = None
 
     try:
 
@@ -523,31 +655,45 @@ def itinerary_agent(state):
                 HumanMessage(content=itinerary_prompt(ctx)),
             ],
             token_usage,
-            1200,
+            1400,
         )
 
         llm_calls += 1
         result = response.content
+        accuracy = score_text_accuracy(
+            result,
+            error_prefixes=("Unable to generate itinerary:",),
+        )
 
     except Exception as exc:
         result = f"Unable to generate itinerary: {exc}"
+        accuracy = 25.0
+
+    breakdown = extract_token_breakdown(
+        response, before_tokens, token_usage
+    )
+    telemetry = record_agent_telemetry(
+        state,
+        "itinerary_agent",
+        started_at,
+        breakdown,
+        accuracy,
+    )
 
     emit_event("itinerary_generated", "Draft itinerary generated.")
 
     return {
-        "itinerary": limit_context(result, 2500),
+        "itinerary": limit_context(result, 7000),
         "approval_request": "Review and approve the itinerary.",
         "token_usage": token_usage,
         "llm_calls": llm_calls,
+        **telemetry,
     }
 
 
 # =====================================================
 # HUMAN APPROVAL AGENT
 # =====================================================
-
-from langgraph.types import interrupt
-
 
 def human_approval_agent(state):
 
@@ -594,13 +740,18 @@ def human_approval_agent(state):
 
 def final_agent(state):
 
+    started_at = time.perf_counter()
+
     draft = state.get("itinerary", "")
     token_usage = state.get("token_usage", 0)
     llm_calls = state.get("llm_calls", 0)
+    before_tokens = token_usage
+    response = None
 
     if state.get("approved", False):
 
         result = draft
+        accuracy = score_text_accuracy(result)
 
     else:
 
@@ -619,14 +770,27 @@ def final_agent(state):
                     ),
                 ],
                 token_usage,
-                1000,
+                2000,
             )
 
             llm_calls += 1
             result = response.content
+            accuracy = score_text_accuracy(result)
 
         except Exception:
             result = draft + "\n\nRevision could not be generated."
+            accuracy = 50.0
+
+    breakdown = extract_token_breakdown(
+        response, before_tokens, token_usage
+    )
+    telemetry = record_agent_telemetry(
+        state,
+        "final_agent",
+        started_at,
+        breakdown,
+        accuracy,
+    )
 
     emit_event(
         "agent_completed",
@@ -640,6 +804,7 @@ def final_agent(state):
         "messages": [
             AIMessage(content=result)
         ],
+        **telemetry,
     }
 
 
@@ -649,9 +814,20 @@ def final_agent(state):
 
 def guardrail_blocked_agent(state):
 
+    started_at = time.perf_counter()
+    result = state.get(
+        "final_response",
+        state.get("guardrail_reason", "Request blocked."),
+    )
+    telemetry = record_agent_telemetry(
+        state,
+        "guardrail_blocked",
+        started_at,
+        {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
+        100.0,
+    )
+
     return {
-        "final_response": state.get(
-            "final_response",
-            state.get("guardrail_reason", "Request blocked."),
-        )
+        "final_response": result,
+        **telemetry,
     }

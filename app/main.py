@@ -65,6 +65,19 @@ def sse_event(data: dict[str, Any]) -> str:
     return f"data: {json.dumps(data, ensure_ascii=False, default=str)}\n\n"
 
 
+def _enqueue_from_thread(
+    loop: asyncio.AbstractEventLoop,
+    queue: asyncio.Queue[dict[str, Any] | None],
+    item: dict[str, Any] | None,
+) -> None:
+    if loop.is_closed():
+        return
+    try:
+        loop.call_soon_threadsafe(queue.put_nowait, item)
+    except RuntimeError:
+        pass
+
+
 # =========================================================
 # FRONTEND ROUTE
 # =========================================================
@@ -103,20 +116,21 @@ async def run(request_data: TravelRequest, request: Request):
             ):
                 if stop_event.is_set():
                     break
-                asyncio.run_coroutine_threadsafe(queue.put(event), loop).result()
+                _enqueue_from_thread(loop, queue, event)
         except Exception as exc:
             traceback.print_exc()
             if not stop_event.is_set():
-                asyncio.run_coroutine_threadsafe(
-                    queue.put({
+                _enqueue_from_thread(
+                    loop,
+                    queue,
+                    {
                         "type": "error",
                         "message": "Travel planning failed.",
                         "error": str(exc),
-                    }),
-                    loop,
-                ).result()
+                    },
+                )
         finally:
-            asyncio.run_coroutine_threadsafe(queue.put(None), loop).result()
+            _enqueue_from_thread(loop, queue, None)
 
     async def event_generator():
         thread = threading.Thread(target=worker, daemon=True)
@@ -176,6 +190,7 @@ def travel(request_data: TravelRequest):
 # =========================================================
 
 @app.post("/api/approval")
+@app.post("/api/travel/approve")
 def approval(request_data: ApprovalRequest):
     try:
         result = resume_travel_agent(
@@ -207,6 +222,7 @@ def health():
             "server_sent_events",
             "human_approval",
             "checkpoint_persistence",
+            "agent_telemetry",
         ],
     }
 

@@ -28,17 +28,17 @@ model_list = [
 ]
 
 # Optional OpenAI fallback.
-if OPENAI_API_KEY:
-    model_list.append({
-        "model_name": "travel-llm",
-        "litellm_params": {
-            "model": "openai/gpt-4o-mini",
-            "api_key": OPENAI_API_KEY,
-        },
-        "model_info": {
-            "id": "openai-gpt4o-mini",
-        },
-    })
+# if OPENAI_API_KEY:
+#     model_list.append({
+#         "model_name": "travel-llm",
+#         "litellm_params": {
+#             "model": "openai/gpt-4o-mini",
+#             "api_key": OPENAI_API_KEY,
+#         },
+#         "model_info": {
+#             "id": "openai-gpt4o-mini",
+#         },
+#     })
 
 
 router = Router(

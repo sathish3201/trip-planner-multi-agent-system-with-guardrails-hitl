@@ -4,10 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>VoyageCraft AI — Next-Gen Travel Intelligence</title>
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-  <script src="/static/script.js"></script>
-  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" defer></script>
+  <script src="/static/script.js?v=6" defer></script>
+  <link rel="stylesheet" href="/static/style.css?v=6">
 </head>
 <body>
   <div class="page-bg">
@@ -19,7 +20,7 @@
   <main class="app-container">
     <section class="hero-section">
       <div class="badge">
-        🌍 VoyageCraft AI — LangGraph, MCP, Supervisor, Guardrails & HITL
+        🌍 VoyageCraft AI — LangGraph, MCP, Supervisor, Guardrails &amp; HITL
       </div>
       <h1>Craft Your Perfect Journey</h1>
       <p>
@@ -33,7 +34,7 @@
         <div>
           <h2>Where shall we take you?</h2>
           <p>
-            Example: Plan a 3-day luxury hyderad & Delhi trip  under 30,000 rs.
+            Example: Plan a 3-day luxury Hyderabad &amp; Delhi trip under ₹30,000.
           </p>
         </div>
         <div class="status-pill">
@@ -45,7 +46,7 @@
       <div class="input-area">
         <textarea
           id="userInput"
-          placeholder="Describe your dream trip (e.g., 7 days in Japan covering flights, local dining, and hidden spots under £3,000)..."
+          placeholder="Describe your dream trip (e.g., 7 days in Japan covering flights, local dining, and hidden spots under $2,500)..."
         ></textarea>
         <button id="sendBtn" onclick="sendMessage()">
           <span id="btnText">Craft Itinerary</span>
@@ -93,6 +94,42 @@
         </div>
       </div>
 
+      <div id="telemetrySection" class="telemetry-panel hidden">
+        <div class="telemetry-grid">
+          <div class="metric-card">
+            <span class="metric-label">Total Tokens</span>
+            <strong id="metricTokens">0</strong>
+            <small id="metricTokenBreakdown">Input: 0 · Output: 0</small>
+          </div>
+
+          <div class="metric-card">
+            <span class="metric-label">LLM Calls</span>
+            <strong id="metricLlmCalls">0</strong>
+            <small id="metricBudgetRemaining">Budget: -</small>
+          </div>
+
+          <div class="metric-card">
+            <span class="metric-label">Overall Latency &amp; Time</span>
+            <strong id="metricLatency">0.00s</strong>
+            <small id="metricRunTime">Completed at -</small>
+          </div>
+
+          <div class="metric-card">
+            <span class="metric-label">Estimated Cost</span>
+            <strong id="metricCost">$0.000000</strong>
+            <small id="metricCostInr">₹0.0000</small>
+          </div>
+
+          <div class="metric-card">
+            <span class="metric-label">Accuracy Score</span>
+            <strong id="metricAccuracy">100%</strong>
+            <small id="metricAccuracyDetail">Guardrails &amp; output check</small>
+          </div>
+        </div>
+
+        <div id="agentTelemetryList" class="agent-telemetry-list"></div>
+      </div>
+
       <div id="pdfContent" class="pdf-content">
         <h1 class="pdf-title">VoyageCraft AI Itinerary</h1>
         <div id="resultBox" class="result-box"></div>
@@ -116,7 +153,7 @@
 
         <div class="approval-actions">
           <button id="approveBtn" class="approve-btn" onclick="submitApproval(true)">
-            Approve & Finalize
+            Approve &amp; Finalize
           </button>
           <button id="reviseBtn" class="revise-btn" onclick="submitApproval(false)">
             Request Revisions
@@ -129,9 +166,7 @@
   </main>
 
   <footer>
-    Powered by FastAPI, LangGraph, Groq, PostgreSQL, Tavily, AviationStack & MCP
+    Powered by FastAPI, LangGraph, Groq, PostgreSQL, Tavily, AviationStack &amp; MCP
   </footer>
-
-  
 </body>
 </html>

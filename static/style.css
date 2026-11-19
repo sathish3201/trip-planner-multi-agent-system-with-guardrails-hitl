@@ -841,3 +841,199 @@ footer {
         font-size: 14px;
     }
 }
+
+
+.telemetry-panel {
+  margin-bottom: 20px;
+  padding: 18px;
+  border-radius: 20px;
+  background: rgba(0, 0, 0, 0.24);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.telemetry-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+}
+
+.metric-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.metric-label {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #38bdf8;
+}
+
+.metric-card strong {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #f8fafc;
+}
+
+.metric-card small {
+  font-size: 0.78rem;
+  color: #94a3b8;
+}
+
+.agent-telemetry-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.agent-metric-item {
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  font-size: 0.82rem;
+  color: #cbd5e1;
+}
+
+.agent-metric-title {
+  font-weight: 700;
+  color: #f1f5f9;
+  margin-bottom: 4px;
+}
+
+@media print {
+  .telemetry-panel {
+    display: none;
+  }
+}
+
+/* =========================================
+   LIVE PROGRESS BAR & AGENT STATUS CARDS
+========================================= */
+
+.progress-panel {
+  margin-bottom: 18px;
+  padding: 14px 18px;
+  border-radius: 18px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.progress-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+  font-size: 0.86rem;
+  color: #cbd5e1;
+}
+
+.progress-meta strong {
+  color: #38bdf8;
+  font-weight: 800;
+}
+
+.progress-track {
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #6366f1, #a855f7, #38bdf8);
+  transition: width 0.35s ease;
+}
+
+.agent-chips {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.agent-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  background: rgba(56, 189, 248, 0.08);
+  transition: border-color 0.25s ease, background 0.25s ease;
+}
+
+.agent-chip.running {
+  border-color: rgba(245, 158, 11, 0.4);
+  background: rgba(245, 158, 11, 0.1);
+}
+
+.agent-chip.completed {
+  border-color: rgba(34, 197, 94, 0.4);
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.agent-chip.failed {
+  border-color: rgba(239, 68, 68, 0.45);
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.agent-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.agent-card-status {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.agent-chip.running .agent-card-status {
+  color: #fcd34d;
+}
+
+.agent-chip.completed .agent-card-status {
+  color: #86efac;
+}
+
+.agent-chip.failed .agent-card-status {
+  color: #fecaca;
+}
+
+.agent-card-detail {
+  font-size: 0.8rem;
+  font-weight: 400;
+  line-height: 1.45;
+  color: #cbd5e1;
+}
+
+/* Ensure white PDF card keeps crisp dark contrast */
+.pdf-content .result-box p,
+.pdf-content .result-box li {
+  color: #1e293b !important;
+}
+
+.pdf-content .result-box strong {
+  color: #0f172a !important;
+}

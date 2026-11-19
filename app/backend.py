@@ -1,16 +1,14 @@
-
+import time
 import uuid
+from typing import Any
 
 from langchain_core.messages import HumanMessage
 from langgraph.types import Command
-from typing import Any
-
 
 from app.config import (
-    TOKEN_LIMIT,
     MAX_USER_INPUT_CHARS,
+    TOKEN_LIMIT,
 )
-
 from app.graph.checkpoint import create_checkpointer
 from app.graph.workflow import build_workflow
 
@@ -54,7 +52,14 @@ def create_initial_state(user_input):
         "llm_calls": 0,
         "token_usage": 0,
         "token_limit": TOKEN_LIMIT,
+
+        "agent_metrics": {},
+        "overall_latency_ms": 0.0,
+        "total_cost_usd": 0.0,
+        "total_cost_inr": 0.0,
+        "overall_accuracy": 100.0,
     }
+
 
 def _extract_node_progress(payload: Any) -> list[dict[str, Any]]:
     events: list[dict[str, Any]] = []
@@ -115,6 +120,7 @@ def _extract_node_progress(payload: Any) -> list[dict[str, Any]]:
 
     return events
 
+
 def validate_input(user_input):
 
     if not isinstance(user_input, str):
@@ -131,9 +137,27 @@ def validate_input(user_input):
     return user_input
 
 
-def serialize_result(result, thread_id):
+def _compute_fallback_accuracy(data: dict[str, Any]) -> float:
+    if data.get("guardrail_allowed") is False:
+        return 0.0
+    selected = data.get("selected_agents") or []
+    result_map = {
+        "flight_agent": data.get("flight_results"),
+        "hotel_agent": data.get("hotel_results"),
+        "weather_agent": data.get("weather_results"),
+        "budget_agent": data.get("budget_results"),
+        "itinerary_agent": data.get("itinerary") or data.get("final_response"),
+    }
+    if not selected:
+        return 100.0
+    completed = sum(1 for agent in selected if str(result_map.get(agent, "")).strip())
+    return round((completed / len(selected)) * 100, 1)
 
-    interrupt_list = result.get("__interrupt__", [])
+
+def serialize_result(result, thread_id, latency_ms: float = 0.0):
+
+    data = result or {}
+    interrupt_list = data.get("__interrupt__", [])
 
     interrupt_payload = None
 
@@ -147,42 +171,67 @@ def serialize_result(result, thread_id):
 
     answer = (
         interrupt_payload.get("draft_itinerary", "")
-        if interrupt_payload
-        else result.get("final_response", "")
+        if isinstance(interrupt_payload, dict)
+        else data.get("final_response", "")
     )
 
-    token_usage = result.get("token_usage", 0)
+    token_usage = int(data.get("token_usage", 0) or 0)
+    agent_metrics = data.get("agent_metrics") or {}
+
+    raw_latency_ms = float(data.get("overall_latency_ms") or latency_ms or 0.0)
+    if latency_ms and raw_latency_ms == 0.0:
+        raw_latency_ms = float(latency_ms)
+
+    total_cost_usd = round(float(data.get("total_cost_usd", 0.0) or 0.0), 6)
+    total_cost_inr = round(float(data.get("total_cost_inr", total_cost_usd * 84.0) or 0.0), 4)
+
+    if "overall_accuracy" in data and data["overall_accuracy"] is not None:
+        overall_accuracy = round(float(data["overall_accuracy"]), 1)
+    else:
+        overall_accuracy = _compute_fallback_accuracy(data)
 
     return {
         "thread_id": thread_id,
-        "answer": answer,
+        answer = (
+        interrupt_payload.get("draft_itinerary", "")
+        if isinstance(interrupt_payload, dict)
+        else data.get("final_response", "")
+    )
 
         "requires_approval": bool(interrupt_payload),
 
-        "approval_request": result.get(
+        "approval_request": data.get(
             "approval_request", ""
         ),
 
-        "flight_results": result.get("flight_results", ""),
-        "hotel_results": result.get("hotel_results", ""),
-        "weather_results": result.get("weather_results", ""),
-        "budget_results": result.get("budget_results", ""),
+        "flight_results": data.get("flight_results", ""),
+        "hotel_results": data.get("hotel_results", ""),
+        "weather_results": data.get("weather_results", ""),
+        "budget_results": data.get("budget_results", ""),
 
-        "itinerary": result.get("itinerary", ""),
+        "itinerary": data.get("itinerary", ""),
 
-        "selected_agents": result.get("selected_agents", []),
-        "trip_constraints": result.get("trip_constraints", {}),
+        "selected_agents": data.get("selected_agents", []),
+        "trip_constraints": data.get("trip_constraints", {}),
+        "supervisor_reasoning": data.get("supervisor_reasoning", ""),
 
-        "guardrail_allowed": result.get("guardrail_allowed", True),
-        "guardrail_reason": result.get("guardrail_reason", ""),
+        "guardrail_allowed": data.get("guardrail_allowed", True),
+        "guardrail_reason": data.get("guardrail_reason", ""),
 
-        "approved": result.get("approved"),
-        "human_feedback": result.get("human_feedback", ""),
+        "approved": data.get("approved"),
+        "human_feedback": data.get("human_feedback", ""),
 
-        "llm_calls": result.get("llm_calls", 0),
+        "llm_calls": int(data.get("llm_calls", 0) or 0),
         "token_usage": token_usage,
         "token_limit": TOKEN_LIMIT,
         "remaining_tokens": max(0, TOKEN_LIMIT - token_usage),
+
+        "agent_metrics": agent_metrics,
+        "overall_latency_ms": round(raw_latency_ms, 1),
+        "overall_latency_seconds": round(raw_latency_ms / 1000, 2),
+        "total_cost_usd": total_cost_usd,
+        "total_cost_inr": total_cost_inr,
+        "overall_accuracy": overall_accuracy,
     }
 
 
@@ -198,12 +247,16 @@ def run_travel_agent(user_input, thread_id=None):
         }
     }
 
+    started_at = time.perf_counter()
+
     result = travel_graph.invoke(
         create_initial_state(user_input),
         config=config,
     )
 
-    return serialize_result(result, thread_id)
+    elapsed_ms = round((time.perf_counter() - started_at) * 1000, 1)
+
+    return serialize_result(result, thread_id, latency_ms=elapsed_ms)
 
 
 def resume_travel_agent(
@@ -230,6 +283,8 @@ def resume_travel_agent(
         }
     }
 
+    started_at = time.perf_counter()
+
     result = travel_graph.invoke(
         Command(
             resume={
@@ -240,62 +295,9 @@ def resume_travel_agent(
         config=config,
     )
 
-    return serialize_result(result, thread_id)
+    elapsed_ms = round((time.perf_counter() - started_at) * 1000, 1)
 
-
-# def stream_travel_agent(user_input, thread_id=None):
-
-#     user_input = validate_input(user_input)
-
-#     thread_id = thread_id or f"user_{uuid.uuid4().hex}"
-
-#     config = {
-#         "configurable": {
-#             "thread_id": thread_id
-#         }
-#     }
-
-#     yield {
-#         "type": "run_started",
-#         "thread_id": thread_id,
-#         "topic": user_input,
-#     }
-
-#     for part in travel_graph.stream(
-#         create_initial_state(user_input),
-#         config=config,
-#         stream_mode=["updates", "custom"],
-#         subgraphs=True,
-#         version="v2",
-#     ):
-
-#         if part["type"] != "custom":
-#             continue
-
-#         event = part["data"]
-
-#         yield {
-#             "type": "agent_event",
-#             "thread_id": thread_id,
-#             "event": event.get("event"),
-#             "message": event.get("message"),
-#             "data": event.get("data", {}),
-#         }
-
-#     snapshot = travel_graph.get_state(config)
-
-#     result = snapshot.values
-
-#     yield {
-#         "type": "final",
-#         "thread_id": thread_id,
-#         "result": serialize_result(result, thread_id),
-#     }
-
-#     yield {
-#         "type": "done",
-#         "thread_id": thread_id,
-#     }
+    return serialize_result(result, thread_id, latency_ms=elapsed_ms)
 
 
 def stream_travel_agent(user_input: str, thread_id: str | None = None):
@@ -307,6 +309,8 @@ def stream_travel_agent(user_input: str, thread_id: str | None = None):
             "thread_id": thread_id,
         }
     }
+
+    started_at = time.perf_counter()
 
     yield {
         "type": "run_started",
@@ -334,17 +338,27 @@ def stream_travel_agent(user_input: str, thread_id: str | None = None):
         payload = part.get("data") if isinstance(part, dict) else None
 
         if part_type == "custom" and isinstance(payload, dict):
-            agent_key = payload.get("agent") or payload.get("event") or "agent"
-            yield {
-                "type": "agent_event",
-                "thread_id": thread_id,
-                "id": str(agent_key).removesuffix("_agent"),
-                "agent": agent_key,
-                "event": payload.get("event", "progress"),
-                "status": payload.get("status", "running"),
-                "message": payload.get("message", "Working..."),
-                "data": payload.get("data", {}),
-            }
+            event_name = payload.get("event", "progress")
+            event_data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+            agent_name = event_data.get("agent") or payload.get("agent")
+
+            if agent_name:
+                yield {
+                    "type": "agent_event",
+                    "thread_id": thread_id,
+                    "id": str(agent_name).removesuffix("_agent"),
+                    "agent": agent_name,
+                    "event": event_name,
+                    "status": "completed" if "completed" in str(event_name) else "running",
+                    "message": payload.get("message", "Working..."),
+                    "data": event_data,
+                }
+            else:
+                yield {
+                    "type": "status",
+                    "thread_id": thread_id,
+                    "content": payload.get("message", "Working..."),
+                }
 
         elif part_type == "updates":
             for stage_evt in _extract_node_progress(payload):
@@ -353,11 +367,12 @@ def stream_travel_agent(user_input: str, thread_id: str | None = None):
 
     snapshot = travel_graph.get_state(config)
     result = snapshot.values if snapshot else {}
+    elapsed_ms = round((time.perf_counter() - started_at) * 1000, 1)
 
     yield {
         "type": "final",
         "thread_id": thread_id,
-        "result": serialize_result(result, thread_id),
+        "result": serialize_result(result, thread_id, latency_ms=elapsed_ms),
     }
 
     yield {
