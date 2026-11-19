@@ -2,7 +2,7 @@
 import time
 import random
 import re
-
+import litellm
 from app.llm.router import router
 from app.llm.rate_limiter import HybridTokenRateLimiter
 from app.security.prompt_injection import check_prompt_injection
@@ -12,6 +12,14 @@ from app.config import (
     MAX_CONCURRENT_REQUESTS,
     MAX_429_RETRIES,
 )
+import litellm
+from app.llm.ttlcache import (
+    TTLCache,
+    is_valid_llm_response,
+    make_cache_key,
+)
+
+llm_cache = TTLCache(ttl_seconds=1800, max_entries=512)
 
 
 limiter = HybridTokenRateLimiter(
@@ -115,6 +123,7 @@ def get_retry_after(exc):
     return float(match.group(1)) if match else None
 
 
+
 def centralized_llm_call(
     messages,
     max_tokens=1000,
@@ -133,6 +142,21 @@ def centralized_llm_call(
     if estimated > limiter.tpm_limit:
         raise ValueError("Request exceeds local TPM capacity.")
 
+    cache_key = make_cache_key(
+        "centralized_llm_call",
+        {
+            "model": "travel-llm",
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "response_format": response_format,
+        },
+    )
+
+    cached_response = llm_cache.get(cache_key)
+    if cached_response is not None:
+        return cached_response
+
     limiter.semaphore.acquire()
 
     try:
@@ -148,17 +172,22 @@ def centralized_llm_call(
                     "messages": messages,
                     "max_tokens": max_tokens,
                     "temperature": temperature,
-                    "stream": False,
+                    "stream": True,
+                    "stream_options": {"include_usage": True},
                 }
 
                 if response_format:
                     kwargs["response_format"] = response_format
 
-                response = router.completion(**kwargs)
+                stream = router.completion(**kwargs)
+                chunks = list(stream)
+                response = litellm.stream_chunk_builder(chunks)
 
                 actual = get_usage(response, estimated)
-
                 limiter.settle(reservation, actual)
+
+                if is_valid_llm_response(response):
+                    llm_cache.set(cache_key, response)
 
                 return response
 

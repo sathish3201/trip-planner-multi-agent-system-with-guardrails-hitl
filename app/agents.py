@@ -380,14 +380,16 @@ def flight_agent(state):
     accuracy = 100.0
 
     try:
-
+        emit_event("agent_started", "gathering airport information.")
         airports = run_async(
             aviation_mcp_call("list_airports")
         )
-
+        emit_event("agent_started", "gathered airport information.")
+        emit_event("agent_started", "gathering airline information.")
         airlines = run_async(
             aviation_mcp_call("list_airlines")
         )
+        emit_event("agent_started", "gathered airline information.")
 
         airport_data = compact_records(
             airports,
@@ -706,6 +708,13 @@ def itinerary_agent(state):
 
 def human_approval_agent(state):
 
+    started_at = time.perf_counter()
+
+    emit_event(
+        "agent_started",
+        "Waiting for human approval...",
+    )
+
     review = interrupt({
         "question": "Do you approve this itinerary?",
         "draft_itinerary": state.get("itinerary", ""),
@@ -734,12 +743,26 @@ def human_approval_agent(state):
     emit_event(
         "approval_received",
         "Human approval received.",
-        {"approved": approved}
+        {"approved": approved},
+    )
+
+    telemetry = record_agent_telemetry(
+        state,
+        "human_approval",
+        started_at,
+        {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
+        100.0,
+    )
+
+    emit_event(
+        "agent_completed",
+        "Human approval step completed.",
     )
 
     return {
         "approved": approved,
         "human_feedback": feedback,
+        **telemetry,
     }
 
 
@@ -757,6 +780,10 @@ def final_agent(state):
     before_tokens = token_usage
     response = None
 
+    emit_event(
+        "final_agent_started",
+        "Final travel checking.."
+    )
     if state.get("approved", False):
 
         result = draft
@@ -807,7 +834,7 @@ def final_agent(state):
     )
 
     return {
-        "final_response": result,
+        "final_response": limit_context(result, 1850),
         "token_usage": token_usage,
         "llm_calls": llm_calls,
         "messages": [
