@@ -15,6 +15,8 @@ from threading import Lock
 from typing import Any, TypedDict, Annotated, Literal
 from collections.abc import Mapping, Sequence
 
+from langgraph.config import get_stream_writer
+
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field, ValidationError
 
@@ -122,7 +124,48 @@ model_list = [
 #             },
 #         }
 #     )
+# ------------------------------adding streaming events------------
+def emit_event(event_type, message, data=None):
 
+    try:
+        writer = get_stream_writer()
+
+        writer({
+            "event": event_type,
+            "message": message,
+            "data": data or {},
+        })
+
+    except Exception as exc:
+        print(f"Streaming event error: {exc}")
+
+def serialize_stream_event(event):
+    event_type = event.get("event", "")
+
+    data = {
+        "event": event_type,
+        "name": event.get("name", ""),
+    }
+
+    if event_type == "on_chat_model_stream":
+        chunk = event.get("data", {}).get("chunk")
+
+        if chunk:
+            data["content"] = chunk.content
+
+    elif event_type == "on_chain_start":
+        data["status"] = "started"
+
+    elif event_type == "on_chain_end":
+        data["status"] = "completed"
+
+    elif event_type == "on_chain_error":
+        data["status"] = "error"
+        data["error"] = str(
+            event.get("data", {}).get("error", "")
+        )
+
+    return data
 
 # =========================================================
 # LITELLM CACHE
@@ -938,8 +981,9 @@ def centralized_llm_call(
             try:
 
                 response = router.completion(
-                    **call_kwargs
-                )
+                    **call_kwargs,
+                    stream=True
+                    )
 
                 # Reconcile reservation with provider usage.
                 actual_tokens = get_provider_token_usage(
@@ -995,7 +1039,7 @@ def centralized_llm_call(
                         "Groq daily token quota exhausted. "
                         "Stop this workflow and wait for the provider's "
                         "daily quota reset or use an independently available quota."
-                    ) from error
+                    ) from exc
 
                 if limit_type in ("TPM", "RPM", "UNKNOWN_429"):
 
@@ -1941,6 +1985,8 @@ def _empty_constraints():
 # =========================================================
 
 
+
+
 def supervisor_agent(state: TravelState):
 
     query = limit_context(
@@ -2035,6 +2081,7 @@ User request:
             flush=True,
         )
 
+  
         return {
             "guardrail_allowed": False,
             "guardrail_reason": reason,
@@ -2047,7 +2094,10 @@ User request:
                 AIMessage(content=reason)
             ],
         }
-
+    emit_event(
+        "guardrail_passed",
+        "Travel request passed validation."
+        )
     # -----------------------------------------------------
     # 2. SUPERVISOR ROUTING
     # -----------------------------------------------------
@@ -2198,7 +2248,14 @@ User request:
     # -----------------------------------------------------
     # 5. RETURN LANGGRAPH STATE
     # -----------------------------------------------------
-
+    emit_event(
+                "agents_selected",
+                "Supervisor selected specialist agents.",
+                {
+                    "selected_agents": selected_agents,
+                    "constraints": constraints,
+                },
+        )
     return {
         "guardrail_allowed": True,
         "guardrail_reason": reason,
@@ -2239,6 +2296,8 @@ def guardrail_blocked_agent(state: TravelState):
     }
 
 
+
+
 # =========================================================
 # FLIGHT AGENT
 # =========================================================
@@ -2248,6 +2307,10 @@ def flight_agent(state: TravelState):
     print(
         "\nINSIDE FLIGHT AGENT\n",
         flush=True,
+    )
+    emit_event(
+        "agent_started",
+        "Flight agent started."
     )
 
     token_usage = state.get(
@@ -2274,7 +2337,7 @@ def flight_agent(state: TravelState):
         "destination",
         "",
     )
-
+    
     try:
 
         airports = run_async(
@@ -2369,7 +2432,10 @@ Do not invent live schedules or ticket prices.
             "Flight information unavailable. "
             "Live schedules and prices must be verified."
         )
-
+    emit_event(
+        "agent_completed",
+        "Flight information processed."
+    )
     return {
         "flight_results": limit_context(
             flight_results,
@@ -2395,6 +2461,15 @@ def hotel_agent(state: TravelState):
         "\nINSIDE HOTEL AGENT\n",
         flush=True,
     )
+
+    emit_event(
+        "agent_started",
+        "hotel agent started."
+    )
+
+    # Keep your existing flight-agent code here.
+
+   
 
     constraints = state.get(
         "trip_constraints",
@@ -2447,7 +2522,10 @@ def hotel_agent(state: TravelState):
             "Live hotel search unavailable. "
             "Hotel availability and prices need verification."
         )
-
+    emit_event(
+            "agent_completed",
+            "Hotel information processed."
+        )
     return {
         "hotel_results": hotel_results,
         "messages": [
@@ -2467,6 +2545,11 @@ def weather_agent(state: TravelState):
     print(
         "\nINSIDE WEATHER AGENT\n",
         flush=True,
+    )
+
+    emit_event(
+        "agent_started",
+        "Weather agent started."
     )
 
     constraints = state.get(
@@ -2530,6 +2613,11 @@ def weather_agent(state: TravelState):
             f"Live weather for {city} unavailable. "
             "Verify the forecast before departure."
         )
+    emit_event(
+        "agent_completed",
+        "Weather information processed."
+    )
+
 
     return {
         "weather_results": limit_context(
@@ -2553,6 +2641,11 @@ def budget_agent(state: TravelState):
     print(
         "\nINSIDE BUDGET AGENT\n",
         flush=True,
+    )
+
+    emit_event(
+        "agent_started",
+        "Budget agent started."
     )
 
     ctx = build_agent_context(state)
@@ -2637,6 +2730,11 @@ Keep the answer concise.
             "token budget. Verify current travel prices."
         )
 
+    emit_event(
+        "agent_completed",
+        "Budget information processed."
+    )
+
     return {
         "budget_results": limit_context(
             budget_results,
@@ -2661,6 +2759,11 @@ def itinerary_agent(state: TravelState):
     print(
         "\nINSIDE ITINERARY AGENT\n",
         flush=True,
+    )
+
+    emit_event(
+        "agent_started",
+        "Itinerary agent started."
     )
 
     ctx = build_agent_context(state)
@@ -2797,6 +2900,15 @@ Requirements:
             "remaining token budget. Please retry with a shorter "
             "request or fewer travel requirements."
         )
+
+    emit_event(
+        "agent_completed",
+        "Itinerary information processed."
+    )
+    emit_event(
+    "itinerary_generated",
+    "Draft itinerary generated.",
+    )
 
     return {
         "itinerary": limit_context(

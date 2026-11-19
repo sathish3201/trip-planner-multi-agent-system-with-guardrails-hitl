@@ -5,3 +5,12 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+
+.venv
+venv
+__pycache__
+*.pyc
+.git
+.env
+*.db
+*.sqlite3
