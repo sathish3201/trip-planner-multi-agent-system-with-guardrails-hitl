@@ -6,7 +6,7 @@
   <title>VoyageCraft AI — Next-Gen Travel Intelligence</title>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-  <script src="/static/script.js" defer></script>
+  <script src="/static/script.js"></script>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -33,7 +33,7 @@
         <div>
           <h2>Where shall we take you?</h2>
           <p>
-            Example: Plan a 3-day luxury Hyderabad &amp; Delhi trip under ₹30,000.
+            Example: Plan a 3-day luxury hyderad & Delhi trip  under 30,000 rs.
           </p>
         </div>
         <div class="status-pill">
@@ -45,25 +45,25 @@
       <div class="input-area">
         <textarea
           id="userInput"
-          placeholder="Describe your dream trip (e.g., 5 days from Hyderabad to Goa covering flights, stays, weather, and budget under ₹45,000)..."
+          placeholder="Describe your dream trip (e.g., 7 days in Japan covering flights, local dining, and hidden spots under £3,000)..."
         ></textarea>
-        <button id="sendBtn" type="button" onclick="sendMessage()">
+        <button id="sendBtn" onclick="sendMessage()">
           <span id="btnText">Craft Itinerary</span>
           <span id="btnLoader" class="loader hidden"></span>
         </button>
       </div>
 
       <div class="quick-prompts">
-        <button type="button" onclick="setPrompt('Plan a 7-day culture & dining trip to Japan including flights and central stays under $2,500.')">
+        <button onclick="setPrompt('Plan a 7-day culture & dining trip to Japan including flights and central stays under $2,500.')">
           ⛩️ Japan Expedition
         </button>
-        <button type="button" onclick="setPrompt('Plan a 5-day luxury Dubai getaway with flights, desert safari, and fine dining.')">
+        <button onclick="setPrompt('Plan a 5-day luxury Dubai getaway with flights, desert safari, and fine dining.')">
           🏙️ Dubai Getaway
         </button>
-        <button type="button" onclick="setPrompt('Plan a 7-day island-hopping route in Thailand with boutique hotels and transport.')">
+        <button onclick="setPrompt('Plan a 7-day island-hopping route in Thailand with boutique hotels and transport.')">
           🏝️ Thailand Escape
         </button>
-        <button type="button" onclick="setPrompt('Find global flight availability and routes across major international hubs.')">
+        <button onclick="setPrompt('Find global flight availability and routes across major international hubs.')">
           ✈️ Global Routes
         </button>
       </div>
@@ -77,17 +77,6 @@
         </div>
         <span id="guardrailBadge" class="guardrail-badge">Guardrails Verified</span>
       </div>
-
-      <div id="agentProgressWrap" class="progress-panel">
-        <div class="progress-meta">
-          <span id="streamStatusText">Ready</span>
-          <strong id="agentProgressPercent">0%</strong>
-        </div>
-        <div class="progress-track">
-          <div id="agentProgressBar" class="progress-fill"></div>
-        </div>
-      </div>
-
       <p id="supervisorReasoning" class="supervisor-reasoning"></p>
       <div id="agentChips" class="agent-chips"></div>
     </section>
@@ -99,8 +88,8 @@
           <p id="threadInfo">Thread ID: -</p>
         </div>
         <div class="result-actions">
-          <button type="button" class="copy-btn" onclick="copyResult()">Copy Itinerary</button>
-          <button type="button" class="download-btn" onclick="downloadPDF()">Export PDF</button>
+          <button class="copy-btn" onclick="copyResult()">Copy Itinerary</button>
+          <button class="download-btn" onclick="downloadPDF()">Export PDF</button>
         </div>
       </div>
 
@@ -126,10 +115,10 @@
         ></textarea>
 
         <div class="approval-actions">
-          <button id="approveBtn" type="button" class="approve-btn" onclick="submitApproval(true)">
-            Approve &amp; Finalize
+          <button id="approveBtn" class="approve-btn" onclick="submitApproval(true)">
+            Approve & Finalize
           </button>
-          <button id="reviseBtn" type="button" class="revise-btn" onclick="submitApproval(false)">
+          <button id="reviseBtn" class="revise-btn" onclick="submitApproval(false)">
             Request Revisions
           </button>
         </div>
@@ -140,7 +129,9 @@
   </main>
 
   <footer>
-    Powered by FastAPI, LangGraph, Groq, PostgreSQL, Tavily, AviationStack &amp; MCP
+    Powered by FastAPI, LangGraph, Groq, PostgreSQL, Tavily, AviationStack & MCP
   </footer>
+
+  
 </body>
 </html>
