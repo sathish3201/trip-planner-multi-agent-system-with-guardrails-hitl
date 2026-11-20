@@ -114,12 +114,24 @@ def compact_records(
         max_chars,
     )
 
+
 def build_agent_context(state):
+
+    effective_query = (
+        state.get("active_query")
+        or state.get("user_query")
+    )
 
     return {
         "query": limit_context(
-            state.get("user_query"), 600
+            effective_query, 900
         ),
+
+        "feedback": limit_context(
+            state.get("human_feedback"), 400
+        ),
+
+        "revision_count": state.get("revision_count", 0),
 
         "constraints": limit_context(
             state.get("trip_constraints"), 650

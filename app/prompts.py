@@ -100,7 +100,7 @@ FINAL_SYSTEM_PROMPT = (
 )
 
 
-def supervisor_prompt(query):
+def supervisor_prompt(user_query, prev_itinerary, human_feedback):
 
     return f"""
 Select the required travel agents.
@@ -108,7 +108,11 @@ Select the required travel agents.
 Extract the travel constraints without inventing information.
 
 User request:
-{query}
+{user_query}
+iternary: 
+{prev_itinerary}
+Feedback:
+{human_feedback}
 """
 
 

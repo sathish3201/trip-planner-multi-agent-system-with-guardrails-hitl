@@ -189,10 +189,18 @@ def supervisor_agent(state):
     started_at = time.perf_counter()
 
     query = limit_context(
-        state.get("user_query"),
+        state.get("user_query",""),
         800,
+    ) 
+    prev_itinerary = limit_context(
+        state.get("prev_itinerary" , ""),
+        1600,
     )
-
+    feedback = limit_context(
+        state.get("human_feedback", ""),
+        1000,
+    )
+    print('supervisor_agent', query, prev_itinerary, feedback)
     token_usage = state.get("token_usage", 0)
     llm_calls = state.get("llm_calls", 0)
     agent_tokens = {
@@ -218,11 +226,11 @@ def supervisor_agent(state):
                 SystemMessage(
                     content=GUARDRAIL_SYSTEM_PROMPT
                 ),
-                HumanMessage(content=query),
+                HumanMessage(content=str(query +"\t" + feedback)),
             ],
             token_usage,
             GuardrailResult,
-            200,
+            1200,
         )
 
         llm_calls += 1
@@ -233,6 +241,7 @@ def supervisor_agent(state):
         agent_tokens["output_tokens"] += g_usage["output_tokens"]
         agent_tokens["total_tokens"] += g_usage["total_tokens"]
 
+        print(agent_tokens, guardrail.allowed, guardrail.reason)
         if not guardrail.allowed:
 
          
@@ -279,7 +288,7 @@ def supervisor_agent(state):
                     content=SUPERVISOR_SYSTEM_PROMPT
                 ),
                 HumanMessage(
-                    content=supervisor_prompt(query)
+                    content=supervisor_prompt(query, prev_itinerary, feedback)
                 ),
             ],
             token_usage,
@@ -380,16 +389,16 @@ def flight_agent(state):
     accuracy = 100.0
 
     try:
-        emit_event("agent_started", "gathering airport information.")
+        emit_event("agent_started", "checking list of airports.")
         airports = run_async(
-            aviation_mcp_call("list_airports")
+            aviation_mcp_call("list_airports")[:300]
         )
-        emit_event("agent_started", "gathered airport information.")
-        emit_event("agent_started", "gathering airline information.")
+    
+        emit_event("agent_started", "checking list of airlines.")
         airlines = run_async(
-            aviation_mcp_call("list_airlines")
+            aviation_mcp_call("list_airlines")[:300]
         )
-        emit_event("agent_started", "gathered airline information.")
+        
 
         airport_data = compact_records(
             airports,
@@ -412,7 +421,7 @@ def flight_agent(state):
             airport_data,
             airline_data,
         )
-
+        
         response, token_usage = budgeted_invoke(
             "flight_agent",
             [
@@ -470,7 +479,7 @@ def hotel_agent(state):
     destination = constraints.get("destination", "")
 
     try:
-
+        
         query = hotel_prompt(
             state.get("user_query", ""),
             destination,
@@ -708,13 +717,6 @@ def itinerary_agent(state):
 
 def human_approval_agent(state):
 
-    started_at = time.perf_counter()
-
-    emit_event(
-        "agent_started",
-        "Waiting for human approval...",
-    )
-
     review = interrupt({
         "question": "Do you approve this itinerary?",
         "draft_itinerary": state.get("itinerary", ""),
@@ -743,26 +745,13 @@ def human_approval_agent(state):
     emit_event(
         "approval_received",
         "Human approval received.",
-        {"approved": approved},
+        {"approved": approved}
     )
 
-    telemetry = record_agent_telemetry(
-        state,
-        "human_approval",
-        started_at,
-        {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
-        100.0,
-    )
-
-    emit_event(
-        "agent_completed",
-        "Human approval step completed.",
-    )
-
+    
     return {
         "approved": approved,
         "human_feedback": feedback,
-        **telemetry,
     }
 
 
@@ -780,10 +769,6 @@ def final_agent(state):
     before_tokens = token_usage
     response = None
 
-    emit_event(
-        "final_agent_started",
-        "Final travel checking.."
-    )
     if state.get("approved", False):
 
         result = draft
@@ -834,7 +819,7 @@ def final_agent(state):
     )
 
     return {
-        "final_response": limit_context(result, 1850),
+        "final_response": result,
         "token_usage": token_usage,
         "llm_calls": llm_calls,
         "messages": [

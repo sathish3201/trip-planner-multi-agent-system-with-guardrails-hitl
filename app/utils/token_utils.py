@@ -48,10 +48,10 @@ def budgeted_invoke(
 
     remaining = TOKEN_LIMIT - current_usage
 
-    if required > remaining:
-        raise RuntimeError(
-            f"{agent_name}: Insufficient token budget."
-        )
+    # if required > remaining:
+    #     raise RuntimeError(
+    #         f"{agent_name}: Insufficient token budget."
+    #     )
 
     response = centralized_llm_call(
         messages=messages,

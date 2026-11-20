@@ -85,6 +85,9 @@ def create_initial_state(user_input):
         "budget_results": "",
 
         "itinerary": "",
+        "prev_itinerary": "",
+        "revision_count": 0,
+        
         "approval_request": "",
 
         "approved": False,
@@ -283,7 +286,10 @@ def serialize_result(
         "weather_results": data.get("weather_results", ""),
         "budget_results": data.get("budget_results", ""),
 
+
         "itinerary": data.get("itinerary", ""),
+        "prev_itinerary": data.get("prev_itinerary", ""),
+        "revision_count": data.get("revision_count", 0),
 
         "selected_agents": data.get("selected_agents", []),
         "trip_constraints": data.get("trip_constraints", {}),
@@ -375,7 +381,7 @@ def resume_travel_agent(
     }
 
     started_at = time.perf_counter()
-
+    print(approved , '\n \n', feedback)
     result = travel_graph.invoke(
         Command(
             resume={

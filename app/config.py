@@ -26,6 +26,8 @@ RETRY_MAX_SECONDS = 30
 
 MAX_CONCURRENT_REQUESTS = 2
 
+MAX_REVISIONS = 3
+
 if not GROQ_API_KEY:
     raise ValueError("GROQ_API_KEY is missing.")
 

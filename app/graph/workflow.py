@@ -5,6 +5,7 @@ from app.graph.state import TravelState
 from app.graph.routing import (
     route_from_supervisor,
     route_after_agent,
+    route_after_human_approval,
     ROUTE_MAP,
 )
 
@@ -80,9 +81,14 @@ def build_workflow(checkpointer):
         "human_approval",
     )
 
-    graph.add_edge(
+
+    graph.add_conditional_edges(
         "human_approval",
-        "final_agent",
+        route_after_human_approval,
+        {
+            "final_agent": "final_agent",
+            "supervisor": "supervisor",
+        },
     )
 
     graph.add_edge(

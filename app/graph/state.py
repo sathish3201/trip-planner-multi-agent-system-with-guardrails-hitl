@@ -5,15 +5,14 @@ from langchain_core.messages import AnyMessage
 
 from app.utils.telemetry import merge_agent_metrics
 
-
 class TravelState(TypedDict, total=False):
-
     messages: Annotated[
         list[AnyMessage],
         operator.add,
     ]
 
     user_query: str
+    
 
     guardrail_allowed: bool
     guardrail_reason: str
@@ -28,10 +27,12 @@ class TravelState(TypedDict, total=False):
 
     budget_results: str
     itinerary: str
+    prev_itinerary: str
 
     approval_request: str
     approved: bool
     human_feedback: str
+    revision_count: int
 
     final_response: str
 
